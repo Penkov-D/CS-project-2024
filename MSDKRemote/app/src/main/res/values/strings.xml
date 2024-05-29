@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">MSDK Remote</string>
+    <string name="loading">Loading...</string>
 </resources>

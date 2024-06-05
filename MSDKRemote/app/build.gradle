@@ -78,8 +78,6 @@ android {
 
 dependencies {
 
-    implementation project(":android-sdk-v5-uxsdk")
-
     implementation "com.dji:dji-sdk-v5-aircraft:5.9.0"
     compileOnly "com.dji:dji-sdk-v5-aircraft-provided:5.9.0"
 

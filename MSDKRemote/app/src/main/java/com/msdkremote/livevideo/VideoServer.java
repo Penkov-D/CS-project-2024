@@ -25,7 +25,7 @@ class VideoServer
 
     public VideoServer() { }
 
-    public synchronized void startServer (int port)
+    public synchronized void startServer (int port, InputStream inStream)
     {
         if (socketThread != null)
             return;
@@ -74,13 +74,12 @@ class VideoServer
                                 }
                             }
 
-                            InputStream iStream = clientSocket.getInputStream();
                             OutputStream oStream = clientSocket.getOutputStream();
 
                             byte[] data = new byte[1024];
                             int readed = 0;
 
-                            while ((readed = iStream.read(data)) != -1) {
+                            while ((readed = inStream.read(data)) != -1) {
                                 oStream.write(data, 0, readed);
                                 oStream.flush();
                             }

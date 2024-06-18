@@ -15,10 +15,7 @@ class CameraListener
 {
     private final String TAG = this.getClass().getSimpleName();
 
-    public CameraListener()
-    {
-
-    }
+    public CameraListener() { }
 
     private OutputStream outputStream = null;
 

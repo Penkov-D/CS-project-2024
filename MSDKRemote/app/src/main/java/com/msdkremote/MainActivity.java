@@ -96,9 +96,6 @@ public class MainActivity extends AppCompatActivity
 
     private void setVideoSurface()
     {
-        if (true)
-            return;
-
         ICameraStreamManager cameraStreamManager = CameraStreamManager.getInstance();
 
         cameraStreamManager.addAvailableCameraUpdatedListener(
@@ -166,5 +163,10 @@ public class MainActivity extends AppCompatActivity
         } catch (InterruptedException e) {
             Log.e(TAG, "Interrupted Exception occurred on UI thread");
         }
+    }
+
+    public void StartSurfaceView(View view)
+    {
+        setVideoSurface();
     }
 }

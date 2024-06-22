@@ -169,4 +169,15 @@ public class MainActivity extends AppCompatActivity
     {
         setVideoSurface();
     }
+
+    public void StartControlActivity(View view) {
+        startActivity(new Intent(this, ControlActivity.class));
+    }
+
+
+    @Override
+    public void onBackPressed() {
+        // Do noting when back pressed (e.g. don't close activity)
+        // super.onBackPressed();
+    }
 }

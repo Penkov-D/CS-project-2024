@@ -9,6 +9,8 @@ class FrameBuffer
     private final int maxBufferSize;
     private int bufferSize = 0;
     private boolean nextKeyFrame = true;
+    private final int WAIT_TIMEOUT = 100;
+    private final Object lock = new Object();
 
     public FrameBuffer(int maxBufferSize) {
         this.maxBufferSize = maxBufferSize;
@@ -22,60 +24,76 @@ class FrameBuffer
         return this.bufferSize;
     }
 
-    public synchronized void nextKeyFrame() {
-        this.nextKeyFrame = true;
-    }
-
-    public synchronized void addFrame(Frame frame)
-    {
-        this.frames.add(frame);
-        this.bufferSize += frame.getSize();
-
-        while (this.bufferSize > this.maxBufferSize)
-        {
-            Frame removedFrame = this.frames.poll();
+    public void nextKeyFrame() {
+        synchronized (lock) {
             this.nextKeyFrame = true;
-
-            if (removedFrame == null)
-                this.bufferSize = 0;
-            else
-                this.bufferSize -= removedFrame.getSize();
         }
-
-        notify();
     }
 
-    private synchronized Frame getNextKeyFrame() throws InterruptedException
+    public void addFrame(Frame frame)
     {
-        Frame nextFrame = null;
+        synchronized (lock) {
+            this.frames.add(frame);
+            this.bufferSize += frame.getSize();
 
-        while (nextFrame == null || !nextFrame.isKeyFrame())
-        {
-            if (frames.isEmpty())
-                wait();
+            while (this.bufferSize > this.maxBufferSize) {
+                Frame removedFrame = this.frames.poll();
+                this.nextKeyFrame = true;
 
-            nextFrame = frames.poll();
+                if (removedFrame == null)
+                    this.bufferSize = 0;
+                else
+                    this.bufferSize -= removedFrame.getSize();
+            }
+
+            lock.notifyAll();
         }
-
-        return nextFrame;
     }
 
-    private synchronized Frame getNextFrame() throws InterruptedException
+    private Frame getNextKeyFrame() throws InterruptedException
     {
-        Frame nextFrame = null;
+        synchronized (lock) {
+            Frame nextFrame = null;
 
-        while (nextFrame == null)
-        {
-            if (frames.isEmpty())
-                wait();
+            while (nextFrame == null || !nextFrame.isKeyFrame()) {
+                if (frames.isEmpty())
+                    lock.wait(WAIT_TIMEOUT);
 
-            nextFrame = frames.poll();
+                nextFrame = frames.poll();
+
+                if (nextFrame == null)
+                    this.bufferSize = 0;
+                else
+                    this.bufferSize -= nextFrame.getSize();
+            }
+
+            return nextFrame;
         }
-
-        return nextFrame;
     }
 
-    public synchronized Frame getFrame() throws InterruptedException
+    private Frame getNextFrame() throws InterruptedException
+    {
+        synchronized (lock) {
+            Frame nextFrame = null;
+
+            while (nextFrame == null) {
+                if (frames.isEmpty())
+                    lock.wait(WAIT_TIMEOUT);
+
+                nextFrame = frames.poll();
+
+                if (nextFrame == null)
+                    this.bufferSize = 0;
+                else
+                    this.bufferSize -= nextFrame.getSize();
+
+            }
+
+            return nextFrame;
+        }
+    }
+
+    public Frame getFrame() throws InterruptedException
     {
         if (this.nextKeyFrame) {
             this.nextKeyFrame = false;

@@ -15,7 +15,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sVideo:
 
     while True:
 
-        data = sVideo.recv(1000000)
+        data = sVideo.recv(100000)
         if len(data) == 0:
             break
 

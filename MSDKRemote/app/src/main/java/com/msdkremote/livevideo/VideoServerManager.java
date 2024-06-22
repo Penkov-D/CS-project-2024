@@ -30,7 +30,7 @@ public class VideoServerManager
         if (videoServer != null)
             return;
 
-        frameBuffer = new FrameBuffer(100_000_000);
+        frameBuffer = new FrameBuffer(1_000_000);
 
         videoServer = new VideoServer();
         videoServer.startServer(port, frameBuffer);

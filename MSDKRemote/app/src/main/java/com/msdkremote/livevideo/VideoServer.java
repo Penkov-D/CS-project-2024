@@ -25,7 +25,7 @@ class VideoServer
 
     public VideoServer() { }
 
-    public synchronized void startServer (int port, InputStream inStream)
+    public synchronized void startServer (int port, FrameBuffer buffer)
     {
         if (socketThread != null)
             return;
@@ -75,14 +75,16 @@ class VideoServer
                             }
 
                             OutputStream oStream = clientSocket.getOutputStream();
+                            buffer.nextKeyFrame();
 
-                            byte[] data = new byte[1024];
-                            int readed = 0;
-
-                            while ((readed = inStream.read(data)) != -1) {
-                                oStream.write(data, 0, readed);
+                            while (!socketThread.isInterrupted()) {
+                                Frame frame = buffer.getFrame();
+                                oStream.write(frame.getData());
                                 oStream.flush();
                             }
+                        }
+                        catch (InterruptedException e) {
+                            socketThread.interrupt();
                         }
                         catch (IOException e) {
                             Log.e(TAG, "A wild IOException occurred", e);

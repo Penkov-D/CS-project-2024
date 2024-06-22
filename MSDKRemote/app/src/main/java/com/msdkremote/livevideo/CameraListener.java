@@ -15,25 +15,15 @@ class CameraListener
 {
     private final String TAG = this.getClass().getSimpleName();
 
-    public CameraListener() { }
+    private FrameBuffer frameBuffer = null;
 
-    private OutputStream outputStream = null;
-
-    public synchronized void setOutputStream(OutputStream outputStream)
-    {
-        this.outputStream = outputStream;
+    public CameraListener(@NonNull FrameBuffer buffer) {
+        this.frameBuffer = buffer;
     }
 
     @Override
     public synchronized void onReceiveStream(@NonNull byte[] data, int offset, int length, @NonNull StreamInfo info)
     {
-        if (outputStream != null) {
-            try {
-                outputStream.write(data, offset, length);
-            }
-            catch (IOException e) {
-                Log.w(TAG, e);
-            }
-        }
+        frameBuffer.addFrame(new Frame(data, offset, length, info));
     }
 }

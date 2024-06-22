@@ -16,7 +16,7 @@ public class AvailableCameraListener
     private final ICameraStreamManager streamManager = CameraStreamManager.getInstance();
 
     private ComponentIndexType cameraOn = null;
-    private final CameraListener cameraListener = new CameraListener();
+    private CameraListener cameraListener = null;
 
     public AvailableCameraListener() {}
 
@@ -37,13 +37,13 @@ public class AvailableCameraListener
         }
     }
 
-    public synchronized void startListener(OutputStream outStream)
+    public synchronized void startListener(FrameBuffer buffer)
     {
         if (listenerOn)
             return;
 
         listenerOn = true;
-        cameraListener.setOutputStream(outStream);
+        cameraListener = new CameraListener(buffer);
         streamManager.addAvailableCameraUpdatedListener(this);
     }
 

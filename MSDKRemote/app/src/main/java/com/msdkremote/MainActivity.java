@@ -12,14 +12,23 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.msdkremote.commandserver.CommandHandler;
+import com.msdkremote.commandserver.CommandServer;
 import com.msdkremote.livecontrol.ControlServer;
+import com.msdkremote.livecontrol.smartstick.RegularStickManager;
+import com.msdkremote.livecontrol.smartstick.StickManager;
 import com.msdkremote.livevideo.VideoServerManager;
 
-import java.util.List;
+import java.net.InetAddress;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
-import dji.sdk.keyvalue.value.common.ComponentIndexType;
+import dji.sdk.keyvalue.key.FlightControllerKey;
+import dji.sdk.keyvalue.key.KeyTools;
+import dji.sdk.keyvalue.value.common.EmptyMsg;
 import dji.v5.common.callback.CommonCallbacks;
 import dji.v5.common.error.IDJIError;
+import dji.v5.manager.KeyManager;
 import dji.v5.manager.SDKManager;
 import dji.v5.manager.aircraft.virtualstick.VirtualStickManager;
 import dji.v5.manager.datacenter.camera.CameraStreamManager;
@@ -87,8 +96,6 @@ public class MainActivity extends AppCompatActivity
 
         // Start video server
         VideoServerManager.getInstance().startServer(9999);
-
-        ControlServer controlServer = new ControlServer(this, 9998);
 
         // Start video broadcast on phone
         setVideoSurface();
@@ -179,5 +186,128 @@ public class MainActivity extends AppCompatActivity
     public void onBackPressed() {
         // Do noting when back pressed (e.g. don't close activity)
         // super.onBackPressed();
+    }
+
+    private final CommandServer server = new CommandServer(10000);
+
+    public void StartControlServer(View view)
+    {
+        StickManager stickManager = new RegularStickManager();
+        stickManager.startStickManagement();
+        server.startServer(new CommandHandler() {
+            @Override
+            public void onClientConnected(InetAddress address) {
+                MainActivity.this.runOnUiThread(
+                        new Runnable() {
+                            @Override
+                            public void run() {
+                                Toast.makeText(MainActivity.this,
+                                        "Client connected " + address,
+                                        Toast.LENGTH_SHORT).show();
+                            }
+                        }
+                );
+            }
+
+            @Override
+            public String onCommand(@NonNull String command)
+            {
+                if (command.equals("land"))
+                {
+                    Log.i(MainActivity.this.TAG, "land");
+                    KeyManager.getInstance().performAction(
+                            KeyTools.createKey(FlightControllerKey.KeyStartAutoLanding),
+                            new CommonCallbacks.CompletionCallbackWithParam<EmptyMsg>() {
+                                @Override
+                                public void onSuccess(EmptyMsg emptyMsg) {}
+
+                                @Override
+                                public void onFailure(@NonNull IDJIError idjiError) {
+                                    Toast.makeText(MainActivity.this, idjiError.errorCode(), Toast.LENGTH_SHORT).show();
+                                }
+                            }
+                    );
+
+                    KeyManager.getInstance().performAction(
+                            KeyTools.createKey(FlightControllerKey.KeyConfirmLanding),
+                            new CommonCallbacks.CompletionCallbackWithParam<EmptyMsg>() {
+                                @Override
+                                public void onSuccess(EmptyMsg emptyMsg) {}
+
+                                @Override
+                                public void onFailure(@NonNull IDJIError idjiError) {
+                                    Toast.makeText(MainActivity.this, idjiError.errorCode(), Toast.LENGTH_SHORT).show();
+                                }
+                            }
+                    );
+                }
+                else if (command.equals("takeoff"))
+                {
+                    Log.i(MainActivity.this.TAG, "takeoff");
+                    KeyManager.getInstance().performAction(
+                            KeyTools.createKey(FlightControllerKey.KeyStartTakeoff),
+                            new CommonCallbacks.CompletionCallbackWithParam<EmptyMsg>() {
+                                @Override
+                                public void onSuccess(EmptyMsg emptyMsg) {}
+
+                                @Override
+                                public void onFailure(@NonNull IDJIError idjiError) {
+                                    Toast.makeText(MainActivity.this, idjiError.errorCode(), Toast.LENGTH_SHORT).show();
+                                }
+                            }
+                    );
+                }
+                else
+                {
+                    String patternString = "rc\\s+(-?\\d+\\.\\d+)\\s+(-?\\d+\\.\\d+)\\s+(-?\\d+\\.\\d+)\\s+(-?\\d+\\.\\d+)";
+
+                    // Compile the pattern
+                    Pattern pattern = Pattern.compile(patternString);
+
+                    // Match the pattern against the input string
+                    Matcher matcher = pattern.matcher(command);
+
+                    // Check if the pattern matches
+                    if (matcher.matches()) {
+                        // Extract and parse the floating-point numbers
+                        try {
+                            float value1 = Float.parseFloat(matcher.group(1));
+                            float value2 = Float.parseFloat(matcher.group(2));
+                            float value3 = Float.parseFloat(matcher.group(3));
+                            float value4 = Float.parseFloat(matcher.group(4));
+
+                            // Output the parsed values
+                            Log.i(MainActivity.this.TAG, "rc " + value1 + ", " + value2 + ", " + value3 + ", " + value4);
+                            stickManager.setSticks(value1, value2, value3, value4);
+                        } catch (NumberFormatException e) {
+                            Log.w(MainActivity.this.TAG, e);
+                        }
+                    } else {
+                        Log.w(MainActivity.this.TAG, "Not in format");
+                    }
+                }
+
+                return command;
+            }
+
+            @Override
+            public void onClientDisconnected() {
+                MainActivity.this.runOnUiThread(
+                        new Runnable() {
+                            @Override
+                            public void run() {
+                                Toast.makeText(MainActivity.this,
+                                        "Client disconnected",
+                                        Toast.LENGTH_SHORT).show();
+                            }
+                        }
+                );
+            }
+        });
+    }
+
+    public void StopControlServer(View view) throws InterruptedException
+    {
+        server.stopServer();
     }
 }

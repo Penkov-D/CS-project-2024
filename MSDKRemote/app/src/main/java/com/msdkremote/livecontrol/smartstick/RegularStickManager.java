@@ -4,16 +4,29 @@ import android.util.Log;
 
 import androidx.annotation.FloatRange;
 import androidx.annotation.IntRange;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
+import dji.sdk.keyvalue.key.DJIActionKeyInfo;
+import dji.sdk.keyvalue.key.DJIKey;
+import dji.sdk.keyvalue.key.DJIKeyInfo;
+import dji.sdk.keyvalue.key.FlightControllerKey;
+import dji.sdk.keyvalue.key.KeyTools;
+import dji.sdk.keyvalue.value.common.EmptyMsg;
+import dji.v5.common.callback.CommonCallbacks;
+import dji.v5.common.error.IDJIError;
+import dji.v5.manager.KeyManager;
 import dji.v5.manager.aircraft.virtualstick.IStick;
 import dji.v5.manager.aircraft.virtualstick.VirtualStickManager;
+import dji.v5.manager.interfaces.IKeyManager;
 import kotlin.NotImplementedError;
+import kotlin.Result;
 
-public class RegularStickManager implements StickManager {
+public class RegularStickManager implements StickManager
+{
     private final String TAG = this.getClass().getSimpleName();
 
     private boolean isVirtualStickActive = false;
-
 
     public RegularStickManager() {
 
@@ -104,5 +117,47 @@ public class RegularStickManager implements StickManager {
     {
         setLeftStick(leftHValue, leftVValue);
         setRightStick(rightHValue, rightVValue);
+    }
+
+
+    private<T> void runAction(
+            DJIActionKeyInfo<T, EmptyMsg> actionKey, @Nullable ActionCallback callback)
+    {
+        IKeyManager keyManager = KeyManager.getInstance();
+
+        keyManager.performAction(
+                KeyTools.createKey(actionKey),
+                new CommonCallbacks.CompletionCallbackWithParam<EmptyMsg>()
+                {
+                    @Override
+                    public void onSuccess(EmptyMsg emptyMsg) {
+                        if (callback != null) {
+                            callback.onSuccess();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(@NonNull IDJIError idjiError) {
+                        if (callback != null) {
+                            callback.onFailure(idjiError);
+                        }
+                    }
+                }
+        );
+    }
+
+    @Override
+    public void takeoff(@Nullable ActionCallback callback)
+    {
+        Log.i(this.TAG, "takeoff");
+        runAction(FlightControllerKey.KeyStartTakeoff, callback);
+    }
+
+    @Override
+    public void land(@Nullable ActionCallback callback)
+    {
+        Log.i(this.TAG, "land");
+        runAction(FlightControllerKey.KeyStartAutoLanding, callback);
+        runAction(FlightControllerKey.KeyConfirmLanding, callback);
     }
 }

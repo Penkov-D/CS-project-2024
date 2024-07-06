@@ -6,7 +6,10 @@ import android.util.Log;
 import android.view.Surface;
 import android.view.SurfaceView;
 import android.view.View;
+import android.widget.CompoundButton;
+import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.ToggleButton;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -18,8 +21,12 @@ import com.msdkremote.livecontrol.ControlServer;
 import com.msdkremote.livecontrol.smartstick.RegularStickManager;
 import com.msdkremote.livecontrol.smartstick.StickManager;
 import com.msdkremote.livevideo.VideoServerManager;
+import com.msdkremote.networkstate.NetworkChangeListener;
+import com.msdkremote.networkstate.NetworkMonitor;
+import com.msdkremote.networkstate.NetworkType;
 
 import java.net.InetAddress;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -42,6 +49,8 @@ public class MainActivity extends AppCompatActivity
     // Hold whether the onRegister method was called
     private boolean wasRegistered = false;
 
+    private CommandServer commandServer;
+
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -58,11 +67,22 @@ public class MainActivity extends AppCompatActivity
                             .addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
             );
         }
-
         else {
             Log.i(TAG, "OnCreate(): App is registered!");
         }
+
+        NetworkMonitor monitor = new NetworkMonitor(this);
+        monitor.registerListener((networkType, address) -> {
+            MainActivity.this.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    TextView textView = (TextView) findViewById(R.id.networkStateTextView);
+                    textView.setText("Network type : " + networkType + ", address : " + address.getHostAddress());
+                }
+            });
+        });
     }
+
 
     @Override
     protected synchronized void onResume() {
@@ -73,7 +93,12 @@ public class MainActivity extends AppCompatActivity
             wasRegistered = true;
             onRegistered();
         }
+
+        // Start video broadcast on phone
+        if (SDKManager.getInstance().isRegistered())
+            setVideoSurface();
     }
+
 
     @Override
     protected synchronized void onDestroy() {
@@ -84,6 +109,7 @@ public class MainActivity extends AppCompatActivity
             onUnregistered();
         }
     }
+
 
     /**
      * This method will be called when the MSDK is activated.
@@ -97,104 +123,13 @@ public class MainActivity extends AppCompatActivity
         // Start video server
         VideoServerManager.getInstance().startServer(9999);
 
-        // Start video broadcast on phone
-        setVideoSurface();
-    }
-
-    private void setVideoSurface()
-    {
-        ICameraStreamManager cameraStreamManager = CameraStreamManager.getInstance();
-
-        cameraStreamManager.addAvailableCameraUpdatedListener(
-            availableCameraList -> {
-                if (availableCameraList.isEmpty())
-                    return;
-
-                SurfaceView surfaceView = findViewById(R.id.mainVideo);
-                Surface surface = surfaceView.getHolder().getSurface();
-
-                cameraStreamManager.putCameraStreamSurface(
-                        availableCameraList.get(0),
-                        surface,
-                        surfaceView.getWidth(),
-                        surfaceView.getHeight(),
-                        ICameraStreamManager.ScaleType.CENTER_INSIDE
-                );
-            }
-        );
-    }
-
-    /**
-     * This method will be called when the app is closed.
-     * Put here all the "cleanup" methods from the MSDK.
-     * Note, this method will be called only if onRegistered method was called.
-     */
-    private void onUnregistered()
-    {
-        try {
-            // Close video server broadcast
-            VideoServerManager.getInstance().killServer();
-        }
-        catch (InterruptedException e) {
-            Log.e(TAG, "onUnregistered: Interrupted Exception occurred on UI thread");
-        }
-    }
-
-    // Start Server button action
-    public void StartVideoServer (View view)
-    {
-        VideoServerManager.getInstance().startServer(9999);
-
-        IVirtualStickManager stickManager = VirtualStickManager.getInstance();
-
-        stickManager.enableVirtualStick(
-                new CommonCallbacks.CompletionCallback() {
-                    @Override
-                    public void onSuccess() {
-                        Toast.makeText(MainActivity.this, "onSuccess", Toast.LENGTH_SHORT).show();
-                    }
-
-                    @Override
-                    public void onFailure(@NonNull IDJIError idjiError) {
-                        Toast.makeText(MainActivity.this, "onFailure - " + idjiError.errorCode(), Toast.LENGTH_SHORT).show();
-                    }
-                }
-        );
-    }
-
-    // Stop Server button action
-    public void StopVideoServer (View view)
-    {
-        try {
-            VideoServerManager.getInstance().killServer();
-        } catch (InterruptedException e) {
-            Log.e(TAG, "Interrupted Exception occurred on UI thread");
-        }
-    }
-
-    public void StartSurfaceView(View view)
-    {
-        setVideoSurface();
-    }
-
-    public void StartControlActivity(View view) {
-        startActivity(new Intent(this, ControlActivity.class));
-    }
-
-
-    @Override
-    public void onBackPressed() {
-        // Do noting when back pressed (e.g. don't close activity)
-        // super.onBackPressed();
-    }
-
-    private final CommandServer server = new CommandServer(10000);
-
-    public void StartControlServer(View view)
-    {
+        // Start command server
         StickManager stickManager = new RegularStickManager();
         stickManager.startStickManagement();
-        server.startServer(new CommandHandler() {
+
+
+        commandServer = new CommandServer(10000);
+        commandServer.startServer(new CommandHandler() {
             @Override
             public void onClientConnected(InetAddress address) {
                 MainActivity.this.runOnUiThread(
@@ -210,16 +145,15 @@ public class MainActivity extends AppCompatActivity
             }
 
             @Override
-            public String onCommand(@NonNull String command)
-            {
-                if (command.equals("land"))
-                {
+            public String onCommand(@NonNull String command) {
+                if (command.equals("land")) {
                     Log.i(MainActivity.this.TAG, "land");
                     KeyManager.getInstance().performAction(
                             KeyTools.createKey(FlightControllerKey.KeyStartAutoLanding),
                             new CommonCallbacks.CompletionCallbackWithParam<EmptyMsg>() {
                                 @Override
-                                public void onSuccess(EmptyMsg emptyMsg) {}
+                                public void onSuccess(EmptyMsg emptyMsg) {
+                                }
 
                                 @Override
                                 public void onFailure(@NonNull IDJIError idjiError) {
@@ -232,7 +166,8 @@ public class MainActivity extends AppCompatActivity
                             KeyTools.createKey(FlightControllerKey.KeyConfirmLanding),
                             new CommonCallbacks.CompletionCallbackWithParam<EmptyMsg>() {
                                 @Override
-                                public void onSuccess(EmptyMsg emptyMsg) {}
+                                public void onSuccess(EmptyMsg emptyMsg) {
+                                }
 
                                 @Override
                                 public void onFailure(@NonNull IDJIError idjiError) {
@@ -240,15 +175,14 @@ public class MainActivity extends AppCompatActivity
                                 }
                             }
                     );
-                }
-                else if (command.equals("takeoff"))
-                {
+                } else if (command.equals("takeoff")) {
                     Log.i(MainActivity.this.TAG, "takeoff");
                     KeyManager.getInstance().performAction(
                             KeyTools.createKey(FlightControllerKey.KeyStartTakeoff),
                             new CommonCallbacks.CompletionCallbackWithParam<EmptyMsg>() {
                                 @Override
-                                public void onSuccess(EmptyMsg emptyMsg) {}
+                                public void onSuccess(EmptyMsg emptyMsg) {
+                                }
 
                                 @Override
                                 public void onFailure(@NonNull IDJIError idjiError) {
@@ -256,9 +190,7 @@ public class MainActivity extends AppCompatActivity
                                 }
                             }
                     );
-                }
-                else
-                {
+                } else {
                     String patternString = "rc\\s+(-?\\d+\\.\\d+)\\s+(-?\\d+\\.\\d+)\\s+(-?\\d+\\.\\d+)\\s+(-?\\d+\\.\\d+)";
 
                     // Compile the pattern
@@ -271,10 +203,10 @@ public class MainActivity extends AppCompatActivity
                     if (matcher.matches()) {
                         // Extract and parse the floating-point numbers
                         try {
-                            float value1 = Float.parseFloat(matcher.group(1));
-                            float value2 = Float.parseFloat(matcher.group(2));
-                            float value3 = Float.parseFloat(matcher.group(3));
-                            float value4 = Float.parseFloat(matcher.group(4));
+                            float value1 = Float.parseFloat(Objects.requireNonNull(matcher.group(1)));
+                            float value2 = Float.parseFloat(Objects.requireNonNull(matcher.group(2)));
+                            float value3 = Float.parseFloat(Objects.requireNonNull(matcher.group(3)));
+                            float value4 = Float.parseFloat(Objects.requireNonNull(matcher.group(4)));
 
                             // Output the parsed values
                             Log.i(MainActivity.this.TAG, "rc " + value1 + ", " + value2 + ", " + value3 + ", " + value4);
@@ -306,8 +238,95 @@ public class MainActivity extends AppCompatActivity
         });
     }
 
-    public void StopControlServer(View view) throws InterruptedException
+
+    private void setVideoSurface()
     {
-        server.stopServer();
+        ICameraStreamManager cameraStreamManager = CameraStreamManager.getInstance();
+
+        cameraStreamManager.addAvailableCameraUpdatedListener(
+            availableCameraList -> {
+                if (availableCameraList.isEmpty())
+                    return;
+
+                SurfaceView surfaceView = findViewById(R.id.mainVideo);
+                Surface surface = surfaceView.getHolder().getSurface();
+
+                cameraStreamManager.putCameraStreamSurface(
+                        availableCameraList.get(0),
+                        surface,
+                        surfaceView.getWidth(),
+                        surfaceView.getHeight(),
+                        ICameraStreamManager.ScaleType.CENTER_INSIDE
+                );
+            }
+        );
     }
+
+
+    /**
+     * This method will be called when the app is closed.
+     * Put here all the "cleanup" methods from the MSDK.
+     * Note, this method will be called only if onRegistered method was called.
+     */
+    private void onUnregistered()
+    {
+        try {
+            // Close video server broadcast
+            VideoServerManager.getInstance().killServer();
+
+            // Stop command server
+            commandServer.stopServer();
+        }
+        catch (InterruptedException e) {
+            Log.e(TAG, "onUnregistered: Interrupted Exception occurred on UI thread");
+        }
+    }
+
+
+    // Start Server button action
+    public void StartVideoServer (View view)
+    {
+        VideoServerManager.getInstance().startServer(9999);
+
+        IVirtualStickManager stickManager = VirtualStickManager.getInstance();
+
+        stickManager.enableVirtualStick(
+                new CommonCallbacks.CompletionCallback() {
+                    @Override
+                    public void onSuccess() {
+                        Toast.makeText(MainActivity.this, "onSuccess", Toast.LENGTH_SHORT).show();
+                    }
+
+                    @Override
+                    public void onFailure(@NonNull IDJIError idjiError) {
+                        Toast.makeText(MainActivity.this, "onFailure - " + idjiError.errorCode(), Toast.LENGTH_SHORT).show();
+                    }
+                }
+        );
+    }
+
+
+    // Stop Server button action
+    public void StopVideoServer (View view)
+    {
+        try {
+            VideoServerManager.getInstance().killServer();
+        } catch (InterruptedException e) {
+            Log.e(TAG, "Interrupted Exception occurred on UI thread");
+        }
+    }
+
+
+    public void StartControlActivity(View view) {
+        startActivity(new Intent(this, ControlActivity.class));
+    }
+
+
+    @Override
+    public void onBackPressed() {
+        // Do noting when back pressed (e.g. don't close activity)
+        // super.onBackPressed();
+    }
+
+
 }

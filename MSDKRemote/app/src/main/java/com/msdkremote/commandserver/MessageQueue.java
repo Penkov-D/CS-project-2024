@@ -7,6 +7,8 @@ import java.util.Queue;
 
 class MessageQueue
 {
+    //TODO: add method for removing command, as it may be read, but yet to process.
+
     // The maximum capacity this queue will hold
     private final int capacity;
 

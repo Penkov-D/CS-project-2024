@@ -9,7 +9,7 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 
-class CommandServerThreadWriter
+class CommandServerWriter
 {
     // Tag for logcat
     private final String TAG;
@@ -33,7 +33,7 @@ class CommandServerThreadWriter
      * @param outputStream the OutputStream to write into.
      * @param messageQueue queue for the messages needed to deliver.
      */
-    public CommandServerThreadWriter(
+    public CommandServerWriter(
             @NonNull OutputStream outputStream,
             @NonNull MessageQueue messageQueue)
     {
@@ -56,7 +56,7 @@ class CommandServerThreadWriter
      * @param messageQueue queue for the messages needed to deliver.
      * @param TAG customizable tag to use with logcat, mainly for debugging.
      */
-    public CommandServerThreadWriter(
+    public CommandServerWriter(
             @NonNull OutputStream outputStream,
             @NonNull MessageQueue messageQueue,
             @NonNull String TAG)
@@ -78,17 +78,30 @@ class CommandServerThreadWriter
      *
      * @throws InterruptedException if the calling thread was interrupted.
      */
-    public synchronized void stopServer() throws InterruptedException
+    public void stopServer() throws InterruptedException
     {
-        // Check if this thread is running
-        if (!this.threadWriter.isAlive()) return;
+        synchronized (this)
+        {
+            // Check if this thread is running
+            if (!this.threadWriter.isAlive()) return;
 
-        // Close the thread
-        this.threadWriter.interrupt();
-        // The clean method should interrupt the thread in the spacial case that it is mid writing.
-        this.clean();
+            // Close the thread
+            this.threadWriter.interrupt();
+            // The clean method should interrupt the thread in the spacial case that it is mid writing.
+            this.clean();
+        }
 
         // Return from this method only when the thread was fully terminated.
+        this.threadWriter.join();
+    }
+
+
+    /**
+     * Waits for this thread to end.
+     *
+     * @throws InterruptedException if the calling thread was interrupted.
+     */
+    public void joinServer() throws InterruptedException {
         this.threadWriter.join();
     }
 

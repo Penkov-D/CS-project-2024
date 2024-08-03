@@ -1,18 +1,14 @@
-package com.msdkremote.livecontrol.smartstick;
+package com.msdkremote.livecontrol;
 
 import androidx.annotation.FloatRange;
-import androidx.annotation.IntRange;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import dji.v5.manager.aircraft.virtualstick.IStick;
-import dji.v5.manager.aircraft.virtualstick.VirtualStickManager;
-
 public interface StickManager
 {
-    public void startStickManagement();
+    public void startStickManagement(@NonNull ActionCallback callback);
 
-    public void stopStickManagement();
+    public void stopStickManagement(@NonNull ActionCallback callback);
 
     public void setSticks(
             @FloatRange(from = -1.0, to = 1.0) double leftHValue,

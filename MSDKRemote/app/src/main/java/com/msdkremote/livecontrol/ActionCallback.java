@@ -1,4 +1,4 @@
-package com.msdkremote.livecontrol.smartstick;
+package com.msdkremote.livecontrol;
 
 import androidx.annotation.NonNull;
 

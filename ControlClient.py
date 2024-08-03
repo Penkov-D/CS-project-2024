@@ -3,12 +3,13 @@ import keyboard
 import time
 
 HOST = '10.0.0.6'
-PORT_VIDEO = 10000
+PORT_VIDEO = 9998
 
 
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sCommand:
 
     sCommand.connect((HOST, PORT_VIDEO))
+
 
     while True:
 
@@ -22,9 +23,9 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sCommand:
         move_value = 0.03
 
         if keyboard.is_pressed('a'):
-            lh = -move_value
+            lh = -move_value * 10
         if keyboard.is_pressed('d'):
-            lh =  move_value
+            lh =  move_value * 10
         if keyboard.is_pressed('s'):
             lv = -move_value
         if keyboard.is_pressed('w'):
@@ -47,9 +48,15 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sCommand:
         if keyboard.is_pressed('r'):
             command = 'land'
 
+        if keyboard.is_pressed('e'):
+            command = 'enable'
+
+        if keyboard.is_pressed('q'):
+            command = 'disable'
+
         sCommand.sendall(bytes(command + '\r\n', 'utf-8'))
 
-        data = sCommand.recv(100000)
+        data = sCommand.recv(10000, )
         if len(data) == 0:
             break
 

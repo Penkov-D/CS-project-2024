@@ -9,7 +9,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 
-class CommandServerThreadReader
+class CommandServerReader
 {
     // Tag for logcat
     private final String TAG;
@@ -19,7 +19,7 @@ class CommandServerThreadReader
     private boolean isClosed = false;
 
     // The command handler - the method called on new command.
-    private final CommandServerHandler commandHandler;
+    private final CommandServerReaderHandler commandHandler;
 
     // Thread holder
     private final Thread threadReader;
@@ -33,9 +33,9 @@ class CommandServerThreadReader
      * @param inputStream the InputStream to read from.
      * @param commandHandler handle to process the incoming commands.
      */
-    public CommandServerThreadReader(
+    public CommandServerReader(
             @NonNull InputStream inputStream,
-            @NonNull CommandServerHandler commandHandler)
+            @NonNull CommandServerReaderHandler commandHandler)
     {
         this.inputStream = inputStream;
         this.commandHandler = commandHandler;
@@ -56,9 +56,9 @@ class CommandServerThreadReader
      * @param commandHandler handle to process the incoming commands.
      * @param TAG customizable tag to use with logcat, mainly for debugging.
      */
-    public CommandServerThreadReader(
+    public CommandServerReader(
             @NonNull InputStream inputStream,
-            @NonNull CommandServerHandler commandHandler,
+            @NonNull CommandServerReaderHandler commandHandler,
             @NonNull String TAG)
     {
         this.inputStream = inputStream;
@@ -78,18 +78,31 @@ class CommandServerThreadReader
      *
      * @throws InterruptedException if the calling thread was interrupted.
      */
-    public synchronized void stopServer() throws InterruptedException
+    public void stopServer() throws InterruptedException
     {
-        // Check if this thread is running
-        if (!this.threadReader.isAlive()) return;
+        synchronized (this)
+        {
+            // Check if this thread is running
+            if (!this.threadReader.isAlive()) return;
 
-        // Close the thread
-        this.threadReader.interrupt();
-        // The clean method should interrupt the thread if it is waiting for a message.
-        // This is the way that thread will be closed most of the times.
-        this.clean();
+            // Close the thread
+            this.threadReader.interrupt();
+            // The clean method should interrupt the thread if it is waiting for a message.
+            // This is the way that thread will be closed most of the times.
+            this.clean();
+        }
 
         // Return from this method only when the thread was fully terminated.
+        this.threadReader.join();
+    }
+
+
+    /**
+     * Waits for this thread to end.
+     *
+     * @throws InterruptedException if the calling thread was interrupted.
+     */
+    public void joinServer() throws InterruptedException {
         this.threadReader.join();
     }
 
@@ -113,7 +126,7 @@ class CommandServerThreadReader
                     Log.v(this.TAG, "Received command : " + command);
 
                 // Handle the command
-                this.commandHandler.onCommand(null, command);
+                this.commandHandler.onCommand(command);
 
                 // Close the thread if it is terminated
                 if (this.threadReader.isInterrupted())
@@ -149,7 +162,7 @@ class CommandServerThreadReader
                 this.inputStream.close();
 
                 if (this.TAG != null) {
-                    Log.v(this.TAG, "InputStream was closed");
+                    Log.v(this.TAG, "InputStream was closed.");
                 }
             }
         }
@@ -157,7 +170,7 @@ class CommandServerThreadReader
         // May be called due to internal error, or by closing the output stream twice.
         catch (IOException e) {
             if (this.TAG != null) {
-                Log.v(this.TAG, "IOException occurred while closing. (connection closed twice ?)", e);
+                Log.w(this.TAG, "IOException occurred while closing. (connection closed twice ?)", e);
             }
         }
     }

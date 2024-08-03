@@ -1,4 +1,4 @@
-package com.msdkremote.livecontrol.smartstick;
+package com.msdkremote.livecontrol.regularStickManager;
 
 import android.util.Log;
 
@@ -7,9 +7,10 @@ import androidx.annotation.IntRange;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.msdkremote.livecontrol.ActionCallback;
+import com.msdkremote.livecontrol.StickManager;
+
 import dji.sdk.keyvalue.key.DJIActionKeyInfo;
-import dji.sdk.keyvalue.key.DJIKey;
-import dji.sdk.keyvalue.key.DJIKeyInfo;
 import dji.sdk.keyvalue.key.FlightControllerKey;
 import dji.sdk.keyvalue.key.KeyTools;
 import dji.sdk.keyvalue.value.common.EmptyMsg;
@@ -19,8 +20,7 @@ import dji.v5.manager.KeyManager;
 import dji.v5.manager.aircraft.virtualstick.IStick;
 import dji.v5.manager.aircraft.virtualstick.VirtualStickManager;
 import dji.v5.manager.interfaces.IKeyManager;
-import kotlin.NotImplementedError;
-import kotlin.Result;
+import dji.v5.manager.interfaces.IVirtualStickManager;
 
 public class RegularStickManager implements StickManager
 {
@@ -28,16 +28,44 @@ public class RegularStickManager implements StickManager
 
     private boolean isVirtualStickActive = false;
 
-    public RegularStickManager() {
+    public RegularStickManager() { }
 
-    }
-
-    public synchronized void startStickManagement() {
+    @Override
+    public synchronized void startStickManagement(@NonNull ActionCallback callback) {
         isVirtualStickActive = true;
+
+        VirtualStickManager
+                .getInstance()
+                .enableVirtualStick(new CommonCallbacks.CompletionCallback() {
+                        @Override
+                        public void onSuccess() {
+                            callback.onSuccess();
+                        }
+
+                        @Override
+                        public void onFailure(@NonNull IDJIError idjiError) {
+                            callback.onFailure(idjiError);
+                        }
+        });
     }
 
-    public synchronized void stopStickManagement() {
+    @Override
+    public synchronized void stopStickManagement(@NonNull ActionCallback callback) {
         isVirtualStickActive = false;
+
+        VirtualStickManager
+                .getInstance()
+                .disableVirtualStick(new CommonCallbacks.CompletionCallback() {
+                    @Override
+                    public void onSuccess() {
+                        callback.onSuccess();
+                    }
+
+                    @Override
+                    public void onFailure(@NonNull IDJIError idjiError) {
+                        callback.onFailure(idjiError);
+                    }
+                });
     }
 
     private double roundToZero(double value)

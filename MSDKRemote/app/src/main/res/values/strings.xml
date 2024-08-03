@@ -2,4 +2,6 @@
     <string name="app_name">MSDK Remote</string>
     <string name="loading">Loading...</string>
     <string name="network_status_default_text">network status</string>
+    <string name="video_server"><b>Video Server</b> <i>(port 9999)</i></string>
+    <string name="control_server"><b>Control Server</b> <i>(port 9998)</i></string>
 </resources>

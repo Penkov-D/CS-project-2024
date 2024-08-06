@@ -1,24 +1,69 @@
 import socket
+
+import av
+import av.codec
+
+
+class MSDKRemote:
+
+    def __init__(self, host : str):
+
+        self.host = host
+
+
+
+
+'''
+import socket
+import av
+import av.codec
+import cv2
+
+HOST = '10.0.0.6'
+PORT_VIDEO = 9999
+
+codec = av.codec.context.CodecContext.create('h264', 'r')
+
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sVideo:
+
+    sVideo.connect((HOST, PORT_VIDEO))
+
+    while True:
+
+        data = sVideo.recv(100000)
+        if len(data) == 0:
+            break
+
+        print('Data size: ', len(data), 'bytes')
+
+        for packet in codec.parse(data):
+            for frame in codec.decode(packet):
+                img = frame.to_ndarray(format = 'bgr24')
+                img = cv2.resize(img, None, fx = 0.5, fy = 0.5)
+                cv2.imshow('stream', img)
+                
+        key =  cv2.waitKey(20)  # 50Hz
+        
+        if key == ord('q'):
+            exit()
+'''
+
+'''
+import socket
 import keyboard
 import time
 
-'''
-This example is to show how simple the communication with the drone,
-over a simple TCP, with a TELNET like protocol, resembling the Tello
-protocol. While 
-
-'''
-
-# Change here
 HOST = '10.0.0.6'
-PORT_COMMAND = 9998
+PORT_VIDEO = 9998
 
 
-# Connect to the remote server
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sCommand:
-    sCommand.connect((HOST, PORT_COMMAND))
+
+    sCommand.connect((HOST, PORT_VIDEO))
+
 
     while True:
+
         time.sleep(0.1)
 
         lh = 0.0
@@ -69,3 +114,4 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sCommand:
         print('Data size: ', len(data), 'bytes')
 
         print(data)
+'''

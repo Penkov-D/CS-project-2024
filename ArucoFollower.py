@@ -6,7 +6,7 @@ import time
 import threading
 import numpy as np
 
-HOST = '10.0.0.6'
+HOST = '10.42.0.202'
 PORT_VIDEO = 9999
 PORT_COMMAND = 9998
 
@@ -73,18 +73,16 @@ with (
     sVideo.connect((HOST, PORT_VIDEO))
     sCommand.connect((HOST, PORT_COMMAND))
     
-    '''
     # Start drone
     sCommand.sendall(bytes('takeoff' + '\r\n', 'utf-8'))
-    time.sleep(2.0)
+    time.sleep(5.0)
 
     sCommand.sendall(bytes('enable' + '\r\n', 'utf-8'))
     sCommand.sendall(bytes('rc 0.0 0.0 0.0 0.0' + '\r\n', 'utf-8'))
-    '''
 
     while True:
 
-        data = sVideo.recv(100000)
+        data = sVideo.recv(200000)
         if len(data) == 0:
             break
 
@@ -106,15 +104,17 @@ with (
 
             lh = np.rad2deg(np.arctan2(tvec[0], tvec[2])) / 100
             lv = -tvec[1] / 1000
-            rh = -yaw / 500
-            rv = (np.sqrt(tvec[0] ** 2 + tvec[2] ** 2) - 200) / 1000
+            rh = -yaw / 1000
+            rh = rh - np.sign(rh) * np.min([np.abs(rh), 0.01])
+            rv = (np.sqrt(tvec[0] ** 2 + tvec[2] ** 2) - 150) / 1000
+            rv = rv - np.sign(rv) * np.min([np.abs(rv), 0.01])
 
             lh = np.clip(lh,  -1.,  1.)
             lv = np.clip(lv, -.05, .05)
-            rh = np.clip(rh, -.05, .05)
-            rv = np.clip(rv, -.05, .05)
+            rh = np.clip(rh, -.015, .015)
+            rv = np.clip(rv, -.03, .03)
 
-            command = f'rc {lh:.2f} {lv:.2f} {rh:.2f} {rv:.2f}'
+            command = f'rc {lh:.3f} {lv:.3f} {rh:.3f} {rv:.3f}'
             sCommand.sendall(bytes(command + '\r\n', 'utf-8'))
             print(command)
 
@@ -127,7 +127,7 @@ with (
         if key == ord('q'):
             break
     
-    '''
+    
     # Shutdown drone
     sCommand.sendall(bytes('rc 0.0 0.0 0.0 0.0' + '\r\n', 'utf-8'))
     sCommand.sendall(bytes('disable' + '\r\n', 'utf-8'))
@@ -137,7 +137,6 @@ with (
 
     sCommand.sendall(bytes('land' + '\r\n', 'utf-8'))
     time.sleep(2.0)
-    '''
 
 '''
 # Change here

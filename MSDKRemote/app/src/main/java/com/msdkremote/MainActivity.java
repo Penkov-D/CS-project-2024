@@ -153,11 +153,13 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-
     public void StartControlActivity(View view) {
         startActivity(new Intent(this, ControlActivity.class));
     }
 
+    public void StartKeyActivity(View view) {
+        startActivity(new Intent(this, KeyActivity.class));
+    }
 
     @Override
     public void onBackPressed() {

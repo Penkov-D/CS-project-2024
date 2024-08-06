@@ -43,6 +43,18 @@
         app:layout_constraintTop_toBottomOf="@+id/ControlControlServerHolder" />
 
     <Button
+        android:id="@+id/statusView"
+        style="@style/Widget.Material3.Button.OutlinedButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:layout_marginStart="8dp"
+        android:onClick="StartKeyActivity"
+        android:text="STATUS"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/ControlControlServerHolder" />
+
+    <Button
         android:id="@+id/emergencyStop"
         style="@style/Widget.Material3.Button.OutlinedButton"
         android:layout_width="wrap_content"

@@ -4,4 +4,9 @@
     <string name="network_status_default_text">network status</string>
     <string name="video_server"><b>Video Server</b> <i>(port 9999)</i></string>
     <string name="control_server"><b>Control Server</b> <i>(port 9998)</i></string>
+    <string name="battery">Battery:</string>
+    <string name="unknown">Uknown</string>
+    <string name="longitude">Longitude:</string>
+    <string name="latitude">Latitude:</string>
+    <string name="altitude">Altitude:</string>
 </resources>

@@ -20,7 +20,7 @@ import dji.v5.manager.KeyManager;
 import dji.v5.manager.interfaces.IKeyManager;
 
 public class KeyActivity extends AppCompatActivity {
-    private final String TAG = KeyActivity.class.getSimpleName();
+    private final String TAG = ControlActivity.class.getSimpleName();
     private final IKeyManager keyManager = KeyManager.getInstance();
 
     @Override

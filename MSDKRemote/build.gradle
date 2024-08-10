@@ -12,7 +12,7 @@ buildscript {
         // However, if you need to introduce the UXSDK framework,
         //  it is recommended to use the recommended version,
         //  otherwise there may be compilation compatibility issues.
-        classpath 'com.android.tools.build:gradle:8.4.0'
+        classpath "com.android.tools.build:gradle:7.4.2"
 
         // Recommended Kotlin version.
         // If you need to introduce the UXSDK framework,

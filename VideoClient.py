@@ -4,7 +4,7 @@ import av
 import av.codec
 import cv2
 
-HOST = '10.0.0.6'
+HOST = '10.0.0.5'
 PORT_VIDEO = 9999
 
 codec = av.codec.context.CodecContext.create('h264', 'r')

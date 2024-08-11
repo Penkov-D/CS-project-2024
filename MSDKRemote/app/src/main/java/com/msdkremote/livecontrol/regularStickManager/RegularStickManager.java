@@ -186,6 +186,5 @@ public class RegularStickManager implements StickManager
     {
         Log.i(this.TAG, "land");
         runAction(FlightControllerKey.KeyStartAutoLanding, callback);
-        runAction(FlightControllerKey.KeyConfirmLanding, callback);
     }
 }

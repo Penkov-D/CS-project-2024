@@ -6,6 +6,8 @@ import android.util.Log;
 import android.view.Surface;
 import android.view.SurfaceView;
 import android.view.View;
+import android.widget.CheckBox;
+import android.widget.CompoundButton;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -14,20 +16,20 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.msdkremote.commandserver.CommandServer;
+import com.msdkremote.commandserver.CommandServerStateListener;
+import com.msdkremote.livecontrol.ActionCallback;
 import com.msdkremote.livecontrol.ControlServerManager;
 import com.msdkremote.livecontrol.regularStickManager.RegularStickManager;
-import com.msdkremote.livecontrol.StickManager;
 import com.msdkremote.livevideo.VideoServerManager;
 import com.msdkremote.networkstate.NetworkMonitor;
 
+import java.net.InetAddress;
+
 import dji.sdk.keyvalue.value.common.ComponentIndexType;
-import dji.v5.common.callback.CommonCallbacks;
 import dji.v5.common.error.IDJIError;
 import dji.v5.manager.SDKManager;
-import dji.v5.manager.aircraft.virtualstick.VirtualStickManager;
 import dji.v5.manager.datacenter.camera.CameraStreamManager;
 import dji.v5.manager.interfaces.ICameraStreamManager;
-import dji.v5.manager.interfaces.IVirtualStickManager;
 
 public class MainActivity extends AppCompatActivity
 {
@@ -38,7 +40,9 @@ public class MainActivity extends AppCompatActivity
 
 
     @Override
-    protected void onCreate(@Nullable Bundle savedInstanceState) {
+    protected void onCreate(@Nullable Bundle savedInstanceState)
+    {
+        // Launch the activity
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
@@ -57,6 +61,7 @@ public class MainActivity extends AppCompatActivity
             Log.i(TAG, "OnCreate(): App is registered!");
         }
 
+        // Register auto IP monitor
         NetworkMonitor monitor = new NetworkMonitor(this);
         monitor.registerListener((networkType, address) -> {
             MainActivity.this.runOnUiThread(() -> {
@@ -68,6 +73,79 @@ public class MainActivity extends AppCompatActivity
                 ));
             });
         });
+
+        CheckBox checkBoxVideo = findViewById(R.id.checkBoxVideoServer);
+        CheckBox checkBoxControl = findViewById(R.id.checkBoxControlServer);
+
+        TextView textViewVideoStatus = findViewById(R.id.textViewVideoStatus);
+        TextView textViewControlStatus = findViewById(R.id.textViewControlStatus);
+
+        // Set video server check box handler
+        checkBoxVideo.setOnCheckedChangeListener(
+                (buttonView, isChecked) -> {
+                    if (isChecked) {
+                        VideoServerManager.getInstance().startServer(9999);
+                        textViewVideoStatus.setText(R.string.video_status_running);
+                    }
+                    else {
+                        try {
+                            VideoServerManager.getInstance().killServer();
+                        } catch (InterruptedException e) {
+                            Log.w(TAG, "Interrupted exception while closing video server", e);
+                        }
+                        textViewVideoStatus.setText(R.string.video_server_not_running);
+                    }
+                }
+        );
+
+        // Set control server status text view
+        ControlServerManager.getInstance().setStateListener(
+                new CommandServerStateListener() {
+                    @Override
+                    public void onServerRunning() {
+                        textViewControlStatus.setText(R.string.control_server_running);
+                    }
+
+                    @Override
+                    public void onServerClosed() {
+                        textViewControlStatus.setText(R.string.control_server_not_running);
+                    }
+
+                    @Override
+                    public void onServerException(Exception e) {
+                        textViewControlStatus.setText(R.string.control_server_not_running_exception);
+                        Log.w(TAG, "Control server suffered from exception", e);
+                    }
+
+                    @Override
+                    public void onClientConnected(InetAddress address) {
+                        textViewControlStatus.setText(String.format("%s - %s",
+                                getString(R.string.control_server_client_connected),
+                                address.getHostAddress()));
+                    }
+
+                    @Override
+                    public void onClientDisconnected() {
+                        textViewControlStatus.setText(R.string.control_server_running);
+                    }
+                }
+        );
+
+        // Set control server check box handler
+        checkBoxControl.setOnCheckedChangeListener(
+                (buttonView, isChecked) -> {
+                    if (isChecked) {
+                        ControlServerManager.getInstance().startServer(9998);
+                    }
+                    else {
+                        try {
+                            ControlServerManager.getInstance().killServer();
+                        } catch (InterruptedException e) {
+                            Log.w(TAG, "Interrupted exception while closing control server", e);
+                        }
+                    }
+                }
+        );
     }
 
 
@@ -121,15 +199,24 @@ public class MainActivity extends AppCompatActivity
     {
         ICameraStreamManager cameraStreamManager = CameraStreamManager.getInstance();
 
-        SurfaceView surfaceView = findViewById(R.id.mainVideo);
-        Surface surface = surfaceView.getHolder().getSurface();
+        cameraStreamManager.addAvailableCameraUpdatedListener(
+                availableCameraList -> {
 
-        cameraStreamManager.putCameraStreamSurface(
-                ComponentIndexType.LEFT_OR_MAIN,
-                surface,
-                surfaceView.getWidth(),
-                surfaceView.getHeight(),
-                ICameraStreamManager.ScaleType.CENTER_INSIDE
+                    if (!availableCameraList.contains(ComponentIndexType.LEFT_OR_MAIN))
+                        return;
+
+                    SurfaceView surfaceView = findViewById(R.id.mainVideo);
+                    Surface surface = surfaceView.getHolder().getSurface();
+
+                    cameraStreamManager.removeCameraStreamSurface(surface);
+                    cameraStreamManager.putCameraStreamSurface(
+                            ComponentIndexType.LEFT_OR_MAIN,
+                            surface,
+                            surfaceView.getWidth(),
+                            surfaceView.getHeight(),
+                            ICameraStreamManager.ScaleType.CENTER_INSIDE
+                    );
+                }
         );
     }
 
@@ -166,4 +253,53 @@ public class MainActivity extends AppCompatActivity
     }
 
 
+    public void emergencyStop(View view)
+    {
+        // Kill all control activity
+        try {
+            ControlServerManager.getInstance().killServer();
+
+            ((CheckBox) findViewById(R.id.checkBoxControlServer))
+                    .setChecked(false);
+        }
+        catch (InterruptedException e) {
+            Log.w(TAG, "Received interrupt exception while emergency stop.", e);
+        }
+
+        RegularStickManager stickManager = new RegularStickManager();
+
+        // Return control to the remote control
+        stickManager.stopStickManagement(
+                new ActionCallback() {
+                    @Override
+                    public void onSuccess() {
+                        Toast.makeText(MainActivity.this, "Control restored", Toast.LENGTH_SHORT).show();
+                        Log.i(TAG, "Emergency stop - control restored.");
+                    }
+
+                    @Override
+                    public void onFailure(@NonNull IDJIError error) {
+                        Toast.makeText(MainActivity.this, "Couldn't get control", Toast.LENGTH_SHORT).show();
+                        Log.e(TAG, "Error while emergency stop - retrieving control \n" + error.toString());
+                    }
+                }
+        );
+
+        // Land the aircraft
+        stickManager.land(
+                new ActionCallback() {
+                    @Override
+                    public void onSuccess() {
+                        Toast.makeText(MainActivity.this, "Start landing", Toast.LENGTH_SHORT).show();
+                        Log.i(TAG, "Emergency stop - start landing.");
+                    }
+
+                    @Override
+                    public void onFailure(@NonNull IDJIError error) {
+                        Toast.makeText(MainActivity.this, "Couldn't land", Toast.LENGTH_SHORT).show();
+                        Log.e(TAG, "Error while emergency stop - landing \n" + error.toString());
+                    }
+                }
+        );
+    }
 }

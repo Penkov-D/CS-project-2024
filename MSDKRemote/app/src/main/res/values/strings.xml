@@ -4,4 +4,10 @@
     <string name="network_status_default_text">network status</string>
     <string name="video_server"><b>Video Server</b> <i>(port 9999)</i></string>
     <string name="control_server"><b>Control Server</b> <i>(port 9998)</i></string>
+    <string name="video_status_running">Running</string>
+    <string name="video_server_not_running">Not running</string>
+    <string name="control_server_running">Server is running</string>
+    <string name="control_server_not_running">Server is down</string>
+    <string name="control_server_not_running_exception">Server not running (exception)</string>
+    <string name="control_server_client_connected">"Client connected"</string>
 </resources>

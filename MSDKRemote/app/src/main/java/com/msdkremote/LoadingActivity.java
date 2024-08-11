@@ -59,8 +59,12 @@ public class LoadingActivity extends AppCompatActivity
                     }
                     @Override
                     public void onRegisterFailure(IDJIError error) {
-                        Log.i(TAG, "onRegisterFailure: ");
-                        printLoadingMessage("Register success");
+                        Log.i(TAG, "onRegisterFailure: " + error.toString());
+                        printLoadingMessage(
+                                "Error while registering !!! \n"
+                                + error.errorCode() + "\n"
+                                + error.description()
+                        );
                     }
                     @Override
                     public void onProductConnect(int productId) {

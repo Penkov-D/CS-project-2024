@@ -3,6 +3,15 @@
     <style name="Base.Theme.MSDKRemote" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- Customize your light theme here. -->
         <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+        <item name="colorPrimary">@color/colorLightPrimary</item>
+        <item name="colorPrimaryDark">@color/colorLightPrimaryDark</item>
+        <item name="colorAccent">@color/colorLightAccent</item>
+        <item name="android:buttonStyle">@style/ButtonColor</item>
+        <item name="colorButtonNormal">@color/black</item>
+    </style>
+
+    <style name="ButtonColor" parent="@android:style/Widget.Button">
+        <item name="android:textColor">@color/black</item>
     </style>
 
     <style name="Theme.MSDKRemote" parent="Base.Theme.MSDKRemote" />

@@ -34,7 +34,7 @@ class KeyCommandHandler implements CommandHandler
         }
 
         // TODO key from command
-        DJIKeyInfo<?> currentKey = BatteryKey.KeyChargeRemainingInPercent;
+        DJIKeyInfo<Integer> currentKey = BatteryKey.KeyChargeRemainingInPercent;
 
         switch (commandWords[0])
         {
@@ -45,7 +45,7 @@ class KeyCommandHandler implements CommandHandler
                 }
                 keyManager.getValue(
                         KeyTools.createKey(currentKey),
-                        new CommonCallbacks.CompletionCallbackWithParam<>() {
+                        new CommonCallbacks.CompletionCallbackWithParam<Integer>() {
                             @Override
                             public void onSuccess(Integer value) {
 

@@ -33,8 +33,7 @@ class KeyCommandHandler implements CommandHandler
             return;
         }
 
-        // TODO key from command
-        DJIKeyInfo<Integer> currentKey = BatteryKey.KeyChargeRemainingInPercent;
+        DJIKeyInfo<?> currentKey = KeyFromCommand(commandWords[1], commandWords[2]);
 
         switch (commandWords[0])
         {
@@ -43,41 +42,54 @@ class KeyCommandHandler implements CommandHandler
                     commandServer.sendMessage("Illegal command: " + command);
                     break;
                 }
-                keyManager.getValue(
-                        KeyTools.createKey(currentKey),
-                        new CommonCallbacks.CompletionCallbackWithParam<Integer>() {
-                            @Override
-                            public void onSuccess(Integer value) {
-
-
-                            }
-                            @Override
-                            public void onFailure(@NonNull IDJIError idjiError) {
-
-
-                            }
-                        });
+//                keyManager.getValue(
+//                        KeyTools.createKey(currentKey),
+//                        new CommonCallbacks.CompletionCallbackWithParam<T>() {
+//                            @Override
+//                            public void onSuccess(T value) {
+//                                commandServer.sendMessage(String.format("Success: %s %s", command, value.toString()));
+//                            }
+//                            @Override
+//                            public void onFailure(@NonNull IDJIError idjiError) {
+//                                commandServer.sendMessage(idjiError.toString());
+//                            }
+//                        });
                 break;
+
             case "set":
                 if (!currentKey.isCanSet()){
                     commandServer.sendMessage("Illegal command: " + command);
                     break;
                 }
                 break;
+
             case "listen":
                 if (!currentKey.isCanListen()){
                     commandServer.sendMessage("Illegal command: " + command);
                     break;
                 }
                 break;
+
+            case "cancel_listen":
+                if (!currentKey.isCanListen()){
+                    commandServer.sendMessage("Illegal command: " + command);
+                    break;
+                }
+                break;
+
             case "action":
                 if (!currentKey.isCanPerformAction()){
                     commandServer.sendMessage("Illegal command: " + command);
                     break;
                 }
                 break;
+
             default:
                 break;
         }
+    }
+
+    DJIKeyInfo<?> KeyFromCommand (String keyClass, String keyName){
+        return BatteryKey.KeyChargeRemainingInPercent;
     }
 }

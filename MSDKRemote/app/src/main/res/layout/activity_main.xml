@@ -14,7 +14,7 @@
         android:layout_marginEnd="8dp"
         android:layout_marginBottom="8dp"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintDimensionRatio="4:3"
+        app:layout_constraintDimensionRatio="16:9"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
 
@@ -38,9 +38,11 @@
         android:layout_marginTop="8dp"
         android:layout_marginEnd="8dp"
         android:onClick="StartControlActivity"
-        android:text="CONTROL DEMO"
+        android:text="@string/control_demo"
+        android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/ControlControlServerHolder" />
+        app:layout_constraintTop_toBottomOf="@+id/QueryServerHolder" />
+    <!-- Change visibility from gone for debugging -->
 
     <Button
         android:id="@+id/emergencyStop"
@@ -51,7 +53,7 @@
         android:layout_marginEnd="8dp"
         android:layout_marginBottom="8dp"
         android:onClick="emergencyStop"
-        android:text="EMERGENCY STOP"
+        android:text="@string/emergency_stop"
         android:textColor="@color/colorDarkAccent"
         app:layout_constraintBottom_toTopOf="@+id/networkStateTextView"
         app:layout_constraintEnd_toEndOf="parent"
@@ -82,7 +84,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+        app:layout_constraintTop_toBottomOf="@+id/textViewRemoteBattery">
 
         <TextView
             android:id="@+id/textViewVideoHeader"
@@ -160,7 +162,7 @@
             android:layout_marginTop="8dp"
             android:layout_marginEnd="8dp"
             android:layout_marginBottom="8dp"
-            android:text=""
+            android:text="@string/control_server_running"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toStartOf="@+id/checkBoxControlServer"
             app:layout_constraintStart_toStartOf="parent"
@@ -180,5 +182,127 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
+    <!-- ================== Query Server ================== -->
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/QueryServerHolder"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="8dp"
+        android:background="#20808080"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/ControlControlServerHolder">
+
+        <TextView
+            android:id="@+id/textViewQueryHeader"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="8dp"
+            android:text="@string/query_server"
+            app:layout_constraintEnd_toStartOf="@+id/checkBoxQueryServer"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+            android:id="@+id/textViewQueryStatus"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="8dp"
+            android:layout_marginBottom="8dp"
+            android:text=""
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/checkBoxQueryServer"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/textViewQueryHeader" />
+
+        <CheckBox
+            android:id="@+id/checkBoxQueryServer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="8dp"
+            android:layout_marginBottom="8dp"
+            android:checked="true"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <!-- ================== Controller Status ================== -->
+
+    <TextView
+        android:id="@+id/textViewRemoteType"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:text="@string/disconnected"
+        app:layout_constraintStart_toEndOf="@+id/iconViewController"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/textViewRemoteBattery"
+        android:layout_width="wrap_content"
+        android:layout_height="19dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:text="@string/no_battery_data"
+        app:layout_constraintStart_toEndOf="@+id/iconViewController"
+        app:layout_constraintTop_toBottomOf="@+id/textViewRemoteType" />
+
+    <ImageView
+        android:id="@+id/iconViewController"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginStart="16dp"
+        android:contentDescription="@string/controller_icon"
+        app:layout_constraintBottom_toBottomOf="@+id/textViewRemoteBattery"
+        app:layout_constraintDimensionRatio="h,1:1"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/textViewRemoteType"
+        app:srcCompat="@drawable/controller_grey" />
+
+    <!-- ================== Drone Status ================== -->
+
+    <TextView
+        android:id="@+id/textViewDroneType"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="8dp"
+        android:text="@string/disconnected"
+        app:layout_constraintEnd_toStartOf="@+id/iconViewDrone"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/textViewDroneBattery"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="8dp"
+        android:text="@string/no_battery_data"
+        app:layout_constraintEnd_toStartOf="@+id/iconViewDrone"
+        app:layout_constraintTop_toBottomOf="@+id/textViewDroneType" />
+
+    <ImageView
+        android:id="@+id/iconViewDrone"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginEnd="16dp"
+        android:contentDescription="@string/drone_icon"
+        app:layout_constraintBottom_toBottomOf="@+id/textViewDroneBattery"
+        app:layout_constraintDimensionRatio="1:1"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/textViewDroneType"
+        app:srcCompat="@drawable/drone_grey" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

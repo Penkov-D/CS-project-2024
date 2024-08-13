@@ -29,65 +29,56 @@ public class KeyItem<P, R> {
         return KeyTools.createKey(keyInfo);
     }
 
-    protected void get(CommonCallbacks.CompletionCallbackWithParam<R> getCallback) {
-        KeyManager.getInstance().getValue(createKey((DJIKeyInfo<R>)keyInfo), getCallback);
-    }
-
     protected R syncGet() {
         return KeyManager.getInstance().getValue(createKey((DJIKeyInfo<R>)keyInfo));
     }
 
-    protected void set(P param, CommonCallbacks.CompletionCallback setCallback) {
-        KeyManager.getInstance().setValue(createKey((DJIKeyInfo<P>)keyInfo), param, setCallback);
-    }
-
-    protected void listen(Object listenHolder, CommonCallbacks.KeyListener<R> listenCallback) {
-        this.listenHolder = listenHolder;
-        KeyManager.getInstance().listen(createKey((DJIKeyInfo<R>)keyInfo), listenHolder, listenCallback);
-    }
-
-    protected void cancelListen(Object listenHolder) {
-        KeyManager.getInstance().cancelListen(createKey((DJIKeyInfo<R>)keyInfo), listenHolder);
-    }
-
-    protected void action(P param, CommonCallbacks.CompletionCallbackWithParam<R> actonCallback) {
-        DJIKey.ActionKey<P,R> key = createActionKey((DJIActionKeyInfo<P, R>)keyInfo);
-        KeyManager.getInstance().performAction(key, param, actonCallback);
-    }
-
     public void get(@NonNull CommandServer commandServer, @NonNull String command) {
         try {
-            get(new CommonCallbacks.CompletionCallbackWithParam<R>() {
-                @Override
-                public void onSuccess(R value) {
-                    commandServer.sendMessage(String.format("Success: %s %s", command, value.toString()));
-                }
+            if (!keyInfo.isCanGet()){
+                commandServer.sendMessage("Illegal command: " + command);
+                return;
+            }
+            KeyManager.getInstance().getValue(
+                    createKey((DJIKeyInfo<R>)keyInfo),
+                    new CommonCallbacks.CompletionCallbackWithParam<R>() {
+                        @Override
+                        public void onSuccess(R value) {
+                            commandServer.sendMessage(String.format("Success: %s %s", command, value.toString()));
+                        }
 
-                @Override
-                public void onFailure(@NonNull IDJIError idjiError) {
-                    commandServer.sendMessage(idjiError.toString());
-                }
-            });
+                        @Override
+                        public void onFailure(@NonNull IDJIError idjiError) {
+                            commandServer.sendMessage(idjiError.toString());
+                        }
+                    }
+            );
         } catch (Exception e){
             commandServer.sendMessage(String.format("Error: %s %s", command, e));
         }
     }
 
-    public void set(P param, @NonNull CommandServer commandServer, @NonNull String command) {
+    public void set(String paramStr, @NonNull CommandServer commandServer, @NonNull String command) {
         try {
-            set(param, new CommonCallbacks.CompletionCallback() {
-                @Override
-                public void onSuccess() {
-                    commandServer.sendMessage(String.format("Success: %s", command));
-                }
+            if (!keyInfo.isCanSet()){
+                commandServer.sendMessage("Illegal command: " + command);
+                return;
+            }
+            KeyManager.getInstance().setValue(
+                    createKey((DJIKeyInfo<P>)keyInfo),
+                    getParam(paramStr),
+                    new CommonCallbacks.CompletionCallback() {
+                        @Override
+                        public void onSuccess() {
+                            commandServer.sendMessage(String.format("Success: %s", command));
+                        }
 
-                @Override
-                public void onFailure(@NonNull IDJIError idjiError) {
-                    commandServer.sendMessage(idjiError.toString());
-                }
-            });
-
-
+                        @Override
+                        public void onFailure(@NonNull IDJIError idjiError) {
+                            commandServer.sendMessage(idjiError.toString());
+                        }
+                    }
+            );
         } catch (Exception e) {
             commandServer.sendMessage(String.format("Error: %s %s", command, e));
         }
@@ -95,36 +86,73 @@ public class KeyItem<P, R> {
 
     public void listen(@NonNull Object listenHolder, @NonNull CommandServer commandServer, @NonNull String command) {
         try{
-            listen(listenHolder, (oldValue, newValue) -> {
-                if (newValue != null)
-                    commandServer.sendMessage(String.format("NewValue: %s %s", command, newValue));
-            });
+            if (!keyInfo.isCanListen()){
+                commandServer.sendMessage("Illegal command: " + command);
+                return;
+            }
+            this.listenHolder = listenHolder;
+            KeyManager.getInstance().listen(
+                    createKey((DJIKeyInfo<R>)keyInfo),
+                    listenHolder,
+                    (oldValue, newValue) -> {
+                        if (newValue != null)
+                            commandServer.sendMessage(String.format("NewValue: %s %s", command, newValue));
+                    }
+            );
         } catch (Exception e) {
             commandServer.sendMessage(String.format("Error: %s %s", command, e));
         }
+    }
+
+    public void cancelListen(@NonNull Object listenHolder, @NonNull CommandServer commandServer, @NonNull String command) {
+        try{
+            if (!keyInfo.isCanListen()){
+                commandServer.sendMessage("Illegal command: " + command);
+                return;
+            }
+            KeyManager.getInstance().cancelListen(createKey((DJIKeyInfo<R>)keyInfo), listenHolder);
+        } catch (Exception e) {
+            commandServer.sendMessage(String.format("Error: %s %s", command, e));
+        }
+    }
+
+    public void action(String paramStr, @NonNull CommandServer commandServer, @NonNull String command) {
+        try {
+            if (!keyInfo.isCanPerformAction()){
+                commandServer.sendMessage("Illegal command: " + command);
+                return;
+            }
+            KeyManager.getInstance().performAction(
+                    createActionKey((DJIActionKeyInfo<P, R>)keyInfo),
+                    getParam(paramStr),
+                    new CommonCallbacks.CompletionCallbackWithParam<R>() {
+                        @Override
+                        public void onSuccess(Object r) {
+                            if (r != null) {
+                                commandServer.sendMessage(String.format("Success: %s %s", command, r));
+                            } else {
+                                commandServer.sendMessage(String.format("Success: %s", command));
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(@NonNull IDJIError idjiError) {
+                            commandServer.sendMessage(idjiError.toString());
+                        }
+                    }
+            );
+        } catch (Exception e) {
+            commandServer.sendMessage(String.format("Error: %s %s", command, e));
+        }
+    }
+
+    public P getParam (String paramStr){
+        return (P) keyInfo.getTypeConverter().fromStr(paramStr);
     }
 
     public DJIKeyInfo<?> getKeyInfo() {
         return keyInfo;
     }
 
-    public Object getListenHolder() {
-        return listenHolder;
-    }
-
-    public boolean canGet() {
-        return keyInfo.isCanGet();
-    }
-
-    public boolean canSet() {
-        return keyInfo.isCanSet();
-    }
-
-    public boolean canListen() {
-        return keyInfo.isCanListen();
-    }
-
-    public boolean canAction() {
-        return keyInfo.isCanPerformAction();
-    }
+    public Object getListenHolder() { return listenHolder; }
 }

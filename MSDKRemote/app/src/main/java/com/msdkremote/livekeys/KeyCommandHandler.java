@@ -9,7 +9,6 @@ import com.msdkremote.R;
 import com.msdkremote.commandserver.CommandHandler;
 import com.msdkremote.commandserver.CommandServer;
 
-import dji.sdk.keyvalue.key.BatteryKey;
 import dji.sdk.keyvalue.key.KeyTools;
 import dji.v5.common.callback.CommonCallbacks;
 import dji.v5.common.error.IDJIError;
@@ -21,10 +20,6 @@ class KeyCommandHandler implements CommandHandler
 {
     private final IKeyManager keyManager = KeyManager.getInstance();
 
-    public KeyCommandHandler (){
-
-    }
-
     @Override
     public void onCommand(@NonNull CommandServer commandServer, @NonNull String command) {
         final String[] commandWords = command.toLowerCase().strip().split(" ");
@@ -33,55 +28,34 @@ class KeyCommandHandler implements CommandHandler
             return;
         }
 
-        DJIKeyInfo<?> currentKey = KeyFromCommand(commandWords[1], commandWords[2]);
+        KeyFromCommand keyFromCommand = new KeyFromCommand(command);
+        KeyItem<?, ?> currentKey = keyFromCommand.getKeyItem();
 
-        switch (commandWords[0])
+        if (currentKey == null) {
+            commandServer.sendMessage("Illegal arguments: " + command);
+            return;
+        }
+
+        switch (keyFromCommand.commandWord)
         {
             case "get":
-                if (!currentKey.isCanGet()){
-                    commandServer.sendMessage("Illegal command: " + command);
-                    break;
-                }
-//                keyManager.getValue(
-//                        KeyTools.createKey(currentKey),
-//                        new CommonCallbacks.CompletionCallbackWithParam<T>() {
-//                            @Override
-//                            public void onSuccess(T value) {
-//                                commandServer.sendMessage(String.format("Success: %s %s", command, value.toString()));
-//                            }
-//                            @Override
-//                            public void onFailure(@NonNull IDJIError idjiError) {
-//                                commandServer.sendMessage(idjiError.toString());
-//                            }
-//                        });
+                currentKey.get(commandServer, command);
                 break;
 
             case "set":
-                if (!currentKey.isCanSet()){
-                    commandServer.sendMessage("Illegal command: " + command);
-                    break;
-                }
+                currentKey.set(keyFromCommand.param, commandServer, command);
                 break;
 
             case "listen":
-                if (!currentKey.isCanListen()){
-                    commandServer.sendMessage("Illegal command: " + command);
-                    break;
-                }
+                currentKey.listen(this, commandServer, command);
                 break;
 
             case "cancel_listen":
-                if (!currentKey.isCanListen()){
-                    commandServer.sendMessage("Illegal command: " + command);
-                    break;
-                }
+                currentKey.cancelListen(this, commandServer, command);
                 break;
 
             case "action":
-                if (!currentKey.isCanPerformAction()){
-                    commandServer.sendMessage("Illegal command: " + command);
-                    break;
-                }
+
                 break;
 
             default:
@@ -89,7 +63,4 @@ class KeyCommandHandler implements CommandHandler
         }
     }
 
-    DJIKeyInfo<?> KeyFromCommand (String keyClass, String keyName){
-        return BatteryKey.KeyChargeRemainingInPercent;
-    }
 }

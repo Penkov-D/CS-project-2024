@@ -50,10 +50,12 @@ public class KeyActivity extends AppCompatActivity {
                 KeyTools.createKey(FlightControllerKey.KeyAircraftLocation3D),
                 this,
                 (oldLocation, location) -> {
-                    ((TextView) findViewById(R.id.LongitudeValue)).setText(String.format("%s", location.getLongitude()));
-                    ((TextView) findViewById(R.id.LatitudeValue)).setText(String.format("%s", location.getLatitude()));
-                    ((TextView) findViewById(R.id.AltitudeValue)).setText(String.format("%s", location.getAltitude()));
-                    Log.d(TAG, "Location(lon:lat:alt): " + location.getLongitude() + ":" + location.getLatitude() + ":" + location.getAltitude());
+                    if (location != null) {
+                        ((TextView) findViewById(R.id.LongitudeValue)).setText(String.format("%s", location.getLongitude()));
+                        ((TextView) findViewById(R.id.LatitudeValue)).setText(String.format("%s", location.getLatitude()));
+                        ((TextView) findViewById(R.id.AltitudeValue)).setText(String.format("%s", location.getAltitude()));
+                        Log.d(TAG, "Location(lon:lat:alt): " + location.getLongitude() + ":" + location.getLatitude() + ":" + location.getAltitude());
+                    }
                 }
         );
     }

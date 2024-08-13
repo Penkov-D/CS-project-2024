@@ -8,6 +8,7 @@ import android.view.SurfaceView;
 import android.view.View;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -24,9 +25,17 @@ import com.msdkremote.livevideo.VideoServerManager;
 import com.msdkremote.networkstate.NetworkMonitor;
 
 import java.net.InetAddress;
+import java.util.Locale;
 
+import dji.sdk.keyvalue.key.FlightControllerKey;
+import dji.sdk.keyvalue.key.KeyTools;
+import dji.sdk.keyvalue.key.RemoteControllerKey;
 import dji.sdk.keyvalue.value.common.ComponentIndexType;
+import dji.sdk.keyvalue.value.remotecontroller.BatteryInfo;
+import dji.sdk.keyvalue.value.remotecontroller.RemoteControllerType;
+import dji.v5.common.callback.CommonCallbacks;
 import dji.v5.common.error.IDJIError;
+import dji.v5.manager.KeyManager;
 import dji.v5.manager.SDKManager;
 import dji.v5.manager.datacenter.camera.CameraStreamManager;
 import dji.v5.manager.interfaces.ICameraStreamManager;
@@ -192,6 +201,109 @@ public class MainActivity extends AppCompatActivity
 
         // Start command server
         ControlServerManager.getInstance().startServer(9998);
+
+        // Set controller status views
+        setControllerViews();
+
+        // Set drone status views
+        setDroneViews();
+    }
+
+
+    private void setControllerViews()
+    {
+        ImageView icon = findViewById(R.id.iconViewController);
+        TextView type = findViewById(R.id.textViewRemoteType);
+        TextView battery = findViewById(R.id.textViewRemoteBattery);
+
+        // Listen for connection
+        KeyManager.getInstance().listen(
+                KeyTools.createKey(RemoteControllerKey.KeyConnection),
+                this,
+                (ignore, isConnected) -> {
+                    if ((isConnected != null && isConnected)) {
+                        icon.setImageResource(R.drawable.controller_green);
+                    }
+                    else {
+                        icon.setImageResource(R.drawable.controller_grey);
+                    }
+                }
+        );
+
+        // Monitor battery level
+        KeyManager.getInstance().listen(
+                KeyTools.createKey(RemoteControllerKey.KeyBatteryInfo),
+                this,
+                (ignore, batteryInfo) -> {
+                    if (batteryInfo == null) {
+                        battery.setText("---%");
+                    }
+                    else {
+                        battery.setText(String.format(
+                                Locale.ENGLISH,
+                                "%d%%",
+                                batteryInfo.getBatteryPercent()));
+                    }
+                }
+        );
+
+        // Monitor Controller type
+        KeyManager.getInstance().listen(
+                KeyTools.createKey(RemoteControllerKey.KeyFirmwareVersion),
+                this,
+                (ignore, firmwareVersion) -> {
+                    type.setText(firmwareVersion == null ? "Disconnected" : firmwareVersion);
+                }
+        );
+
+    }
+
+    private void setDroneViews()
+    {
+        ImageView icon = findViewById(R.id.iconViewDrone);
+        TextView type = findViewById(R.id.textViewDroneType);
+        TextView battery = findViewById(R.id.textViewDroneBattery);
+
+
+        // Listen for connection
+        KeyManager.getInstance().listen(
+                KeyTools.createKey(FlightControllerKey.KeyConnection),
+                this,
+                (ignore, isConnected) -> {
+                    if ((isConnected != null && isConnected)) {
+                        icon.setImageResource(R.drawable.drone_green);
+                    }
+                    else {
+                        icon.setImageResource(R.drawable.drone_grey);
+                    }
+                }
+        );
+
+        // Monitor battery level
+        KeyManager.getInstance().listen(
+                KeyTools.createKey(FlightControllerKey.KeyBatteryPowerPercent),
+                this,
+                (ignore, batteryPresent) -> {
+                    if (batteryPresent == null) {
+                        battery.setText("---%");
+                    }
+                    else {
+                        battery.setText(String.format(
+                                Locale.ENGLISH,
+                                "%d%%",
+                                batteryPresent));
+                    }
+                }
+        );
+
+        // Monitor Controller type
+        KeyManager.getInstance().listen(
+                KeyTools.createKey(FlightControllerKey.KeyAircraftName),
+                this,
+                (ignore, aircraftName) -> {
+                    type.setText(aircraftName == null ? "Disconnected" : aircraftName);
+                }
+        );
     }
 
 

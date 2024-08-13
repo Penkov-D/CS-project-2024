@@ -10,4 +10,11 @@
     <string name="control_server_not_running">Server is down</string>
     <string name="control_server_not_running_exception">Server not running (exception)</string>
     <string name="control_server_client_connected">"Client connected"</string>
+    <string name="query_server"><b>Query Server</b> <i>(port 9997)</i></string>
+    <string name="emergency_stop">EMERGENCY STOP</string>
+    <string name="disconnected">Disconnected</string>
+    <string name="no_battery_data">---%</string>
+    <string name="controller_icon">Controller Icon</string>
+    <string name="drone_icon">Drone Icon</string>
+    <string name="control_demo">CONTROL DEMO</string>
 </resources>

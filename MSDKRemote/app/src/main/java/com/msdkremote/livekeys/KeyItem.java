@@ -63,8 +63,6 @@ public class KeyItem<P, R> {
                 return;
             }
 
-//            commandServer.sendMessage("param: " + getParam(paramStr));
-
             KeyManager.getInstance().setValue(
                     createKey((DJIKeyInfo<P>)keyInfo),
                     getParam(paramStr),

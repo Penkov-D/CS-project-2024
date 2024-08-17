@@ -8,7 +8,6 @@ class KeyCommandHandler implements CommandHandler
 {
     @Override
     public void onCommand(@NonNull CommandServer commandServer, @NonNull String command) {
-        commandServer.sendMessage("Command received: " + command);
         final String[] commandWords = command.toLowerCase().strip().split(" ");
         if (commandWords.length < 3) {
             commandServer.sendMessage("Illegal arguments: " + command);

@@ -1,11 +1,8 @@
 package com.msdkremote.livekeys;
 
 import androidx.annotation.NonNull;
-
-import dji.sdk.keyvalue.key.BatteryKey;
 import dji.sdk.keyvalue.key.FlightControllerKey;
-import dji.sdk.keyvalue.value.common.EmptyMsg;
-import dji.sdk.keyvalue.value.common.LocationCoordinate2D;
+//import dji.sdk.keyvalue.value.common.EmptyMsg;
 
 public class KeyFromCommand {
 
@@ -38,8 +35,12 @@ public class KeyFromCommand {
         }
     }
 
+    /**
+     *
+     * @return for now always return FlightControllerKey.KeyDistanceLimit
+     */
     public KeyItem<?, ?> getKeyItem(){
-        return new KeyItem<LocationCoordinate2D, LocationCoordinate2D>(FlightControllerKey.KeyHomeLocation);
+        return new KeyItem<Double, Double>(FlightControllerKey.KeyDistanceLimit);
     }
 
     @NonNull

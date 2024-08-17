@@ -17,6 +17,7 @@ import com.msdkremote.commandserver.CommandServer;
 import com.msdkremote.livecontrol.ControlServerManager;
 import com.msdkremote.livecontrol.regularStickManager.RegularStickManager;
 import com.msdkremote.livecontrol.StickManager;
+import com.msdkremote.livekeys.KeyServerManager;
 import com.msdkremote.livevideo.VideoServerManager;
 import com.msdkremote.networkstate.NetworkMonitor;
 
@@ -114,6 +115,9 @@ public class MainActivity extends AppCompatActivity
 
         // Start command server
         ControlServerManager.getInstance().startServer(9998);
+
+        // Start key server
+        KeyServerManager.getInstance().startServer(9997);
     }
 
 
@@ -147,6 +151,9 @@ public class MainActivity extends AppCompatActivity
 
             // Close control server
             ControlServerManager.getInstance().killServer();
+
+            // Close key server
+            KeyServerManager.getInstance().killServer();
         }
         catch (InterruptedException e) {
             Log.e(TAG, "onUnregistered: Interrupted Exception occurred on UI thread");
@@ -166,6 +173,4 @@ public class MainActivity extends AppCompatActivity
         // Do noting when back pressed (e.g. don't close activity)
         // super.onBackPressed();
     }
-
-
 }

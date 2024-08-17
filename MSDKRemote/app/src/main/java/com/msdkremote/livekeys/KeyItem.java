@@ -1,10 +1,7 @@
 package com.msdkremote.livekeys;
 
-
 import androidx.annotation.NonNull;
-
 import com.msdkremote.commandserver.CommandServer;
-
 import dji.sdk.keyvalue.key.DJIActionKeyInfo;
 import dji.sdk.keyvalue.key.DJIKeyInfo;
 import dji.sdk.keyvalue.key.DJIKey;
@@ -36,9 +33,10 @@ public class KeyItem<P, R> {
     public void get(@NonNull CommandServer commandServer, @NonNull String command) {
         try {
             if (!keyInfo.isCanGet()){
-                commandServer.sendMessage("Illegal command: " + command);
+                commandServer.sendMessage("Illegal command: " + command + " key doesn't support GET");
                 return;
             }
+
             KeyManager.getInstance().getValue(
                     createKey((DJIKeyInfo<R>)keyInfo),
                     new CommonCallbacks.CompletionCallbackWithParam<R>() {
@@ -49,7 +47,7 @@ public class KeyItem<P, R> {
 
                         @Override
                         public void onFailure(@NonNull IDJIError idjiError) {
-                            commandServer.sendMessage(idjiError.toString());
+                            commandServer.sendMessage(String.format("Error: %s %s", command, idjiError));
                         }
                     }
             );
@@ -61,9 +59,12 @@ public class KeyItem<P, R> {
     public void set(String paramStr, @NonNull CommandServer commandServer, @NonNull String command) {
         try {
             if (!keyInfo.isCanSet()){
-                commandServer.sendMessage("Illegal command: " + command);
+                commandServer.sendMessage("Illegal command: " + command + " key doesn't support SET");
                 return;
             }
+
+//            commandServer.sendMessage("param: " + getParam(paramStr));
+
             KeyManager.getInstance().setValue(
                     createKey((DJIKeyInfo<P>)keyInfo),
                     getParam(paramStr),
@@ -75,7 +76,7 @@ public class KeyItem<P, R> {
 
                         @Override
                         public void onFailure(@NonNull IDJIError idjiError) {
-                            commandServer.sendMessage(idjiError.toString());
+                            commandServer.sendMessage(String.format("Error: %s %s", command, idjiError));
                         }
                     }
             );
@@ -87,9 +88,10 @@ public class KeyItem<P, R> {
     public void listen(@NonNull Object listenHolder, @NonNull CommandServer commandServer, @NonNull String command) {
         try{
             if (!keyInfo.isCanListen()){
-                commandServer.sendMessage("Illegal command: " + command);
+                commandServer.sendMessage("Illegal command: " + command + " key doesn't support LISTEN");
                 return;
             }
+
             this.listenHolder = listenHolder;
             KeyManager.getInstance().listen(
                     createKey((DJIKeyInfo<R>)keyInfo),
@@ -107,9 +109,10 @@ public class KeyItem<P, R> {
     public void cancelListen(@NonNull Object listenHolder, @NonNull CommandServer commandServer, @NonNull String command) {
         try{
             if (!keyInfo.isCanListen()){
-                commandServer.sendMessage("Illegal command: " + command);
+                commandServer.sendMessage("Illegal command: " + command + " key doesn't support LISTEN");
                 return;
             }
+
             KeyManager.getInstance().cancelListen(createKey((DJIKeyInfo<R>)keyInfo), listenHolder);
         } catch (Exception e) {
             commandServer.sendMessage(String.format("Error: %s %s", command, e));
@@ -119,9 +122,10 @@ public class KeyItem<P, R> {
     public void action(String paramStr, @NonNull CommandServer commandServer, @NonNull String command) {
         try {
             if (!keyInfo.isCanPerformAction()){
-                commandServer.sendMessage("Illegal command: " + command);
+                commandServer.sendMessage("Illegal command: " + command + " key doesn't support ACTION");
                 return;
             }
+
             KeyManager.getInstance().performAction(
                     createActionKey((DJIActionKeyInfo<P, R>)keyInfo),
                     getParam(paramStr),
@@ -137,7 +141,7 @@ public class KeyItem<P, R> {
 
                         @Override
                         public void onFailure(@NonNull IDJIError idjiError) {
-                            commandServer.sendMessage(idjiError.toString());
+                            commandServer.sendMessage(String.format("Error: %s %s", command, idjiError));
                         }
                     }
             );

@@ -2,7 +2,7 @@ import socket
 import keyboard
 import time
 
-HOST = '10.0.0.6'
+HOST = '10.0.0.5'
 PORT_VIDEO = 9998
 
 

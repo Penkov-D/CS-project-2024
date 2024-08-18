@@ -129,6 +129,7 @@ class CommandServerWriter
 
                 // Writing the message
                 writer.write(message);
+                writer.write("\r\n");
                 writer.flush();
             }
         }

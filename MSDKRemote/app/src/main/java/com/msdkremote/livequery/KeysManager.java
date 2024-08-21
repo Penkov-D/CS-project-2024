@@ -20,26 +20,18 @@ import dji.v5.manager.KeyManager;
 
 public class KeysManager
 {
-    // List of all the keys
-    private List<DJIKeyInfo<?>> listKeysProduct = null;
-    private List<DJIKeyInfo<?>> listKeysAirlink = null;
-    private List<DJIKeyInfo<?>> listKeysCamera = null;
-    private List<DJIKeyInfo<?>> listKeysGimbal = null;
-    private List<DJIKeyInfo<?>> listKeysFlightController = null;
-    private List<DJIKeyInfo<?>> listKeysRemoteController = null;
-    private List<DJIKeyInfo<?>> listKeysBattery = null;
 
     // Map keys name to their relative info
-    private Map<String, DJIKeyInfo<?>> mapKeysProduct = null;
-    private Map<String, DJIKeyInfo<?>> mapKeysAirlink = null;
-    private Map<String, DJIKeyInfo<?>> mapKeysCamera = null;
-    private Map<String, DJIKeyInfo<?>> mapKeysGimbal = null;
-    private Map<String, DJIKeyInfo<?>> mapKeysFlightController = null;
-    private Map<String, DJIKeyInfo<?>> mapKeysRemoteController = null;
-    private Map<String, DJIKeyInfo<?>> mapKeysBattery = null;
+    private Map<String, KeyItem<?,?>> mapKeysProduct = null;
+    private Map<String, KeyItem<?,?>> mapKeysAirlink = null;
+    private Map<String, KeyItem<?,?>> mapKeysCamera = null;
+    private Map<String, KeyItem<?,?>> mapKeysGimbal = null;
+    private Map<String, KeyItem<?,?>> mapKeysFlightController = null;
+    private Map<String, KeyItem<?,?>> mapKeysRemoteController = null;
+    private Map<String, KeyItem<?,?>> mapKeysBattery = null;
 
     // Map module name to a map of keys names to relative info
-    private Map<String, Map<String, DJIKeyInfo<?>>> mapModuleName = null;
+    private Map<String, Map<String, KeyItem<?,?>>> mapModuleName = null;
 
 
     private static KeysManager keysManager = null;
@@ -70,14 +62,7 @@ public class KeysManager
      */
     public void reset()
     {
-        this.listKeysProduct = ProductKey.getKeyList();
-        this.listKeysAirlink = AirLinkKey.getKeyList();
-        this.listKeysCamera = CameraKey.getKeyList();
-        this.listKeysGimbal = GimbalKey.getKeyList();
-        this.listKeysFlightController = FlightControllerKey.getKeyList();
-        this.listKeysRemoteController = RemoteControllerKey.getKeyList();
-        this.listKeysBattery = BatteryKey.getKeyList();
-
+        // Maps of all the keys inside their module
         mapKeysProduct = new HashMap<>();
         mapKeysAirlink = new HashMap<>();
         mapKeysCamera = new HashMap<>();
@@ -86,14 +71,29 @@ public class KeysManager
         mapKeysRemoteController = new HashMap<>();
         mapKeysBattery = new HashMap<>();
 
-        for (DJIKeyInfo<?> key : listKeysProduct) mapKeysProduct.put(key.getIdentifier(), key);
-        for (DJIKeyInfo<?> key : listKeysAirlink) mapKeysAirlink.put(key.getIdentifier(), key);
-        for (DJIKeyInfo<?> key : listKeysCamera) mapKeysCamera.put(key.getIdentifier(), key);
-        for (DJIKeyInfo<?> key : listKeysGimbal) mapKeysGimbal.put(key.getIdentifier(), key);
-        for (DJIKeyInfo<?> key : listKeysFlightController) mapKeysFlightController.put(key.getIdentifier(), key);
-        for (DJIKeyInfo<?> key : listKeysRemoteController) mapKeysRemoteController.put(key.getIdentifier(), key);
-        for (DJIKeyInfo<?> key : listKeysBattery) mapKeysBattery.put(key.getIdentifier(), key);
+        // Add all the keys to the map
+        for (DJIKeyInfo<?> key : ProductKey.getKeyList())
+            mapKeysProduct.put(key.getIdentifier(), new KeyItem<>(key, "Product"));
 
+        for (DJIKeyInfo<?> key : AirLinkKey.getKeyList())
+            mapKeysAirlink.put(key.getIdentifier(), new KeyItem<>(key, "AirLink"));
+
+        for (DJIKeyInfo<?> key : CameraKey.getKeyList())
+            mapKeysCamera.put(key.getIdentifier(), new KeyItem<>(key, "Camera"));
+
+        for (DJIKeyInfo<?> key : GimbalKey.getKeyList())
+            mapKeysGimbal.put(key.getIdentifier(), new KeyItem<>(key, "Gimbal"));
+
+        for (DJIKeyInfo<?> key : FlightControllerKey.getKeyList())
+            mapKeysFlightController.put(key.getIdentifier(), new KeyItem<>(key, "FlightController"));
+
+        for (DJIKeyInfo<?> key : RemoteControllerKey.getKeyList())
+            mapKeysRemoteController.put(key.getIdentifier(), new KeyItem<>(key, "RemoteController"));
+
+        for (DJIKeyInfo<?> key : BatteryKey.getKeyList())
+            mapKeysBattery.put(key.getIdentifier(), new KeyItem<>(key, "Battery"));
+
+        // Create Global map for modules
         mapModuleName = new HashMap<>();
         mapModuleName.put("Product", mapKeysProduct);
         mapModuleName.put("AirLink", mapKeysAirlink);
@@ -112,11 +112,11 @@ public class KeysManager
      * @throws UnknownModuleException if no module named moduleName.
      */
     @NonNull
-    private Map<String, DJIKeyInfo<?>> getModuleMap(@NonNull String moduleName)
+    private Map<String, KeyItem<?,?>> getModuleMap(@NonNull String moduleName)
             throws UnknownModuleException
     {
         // Search the module map for the module name.
-        Map<String, DJIKeyInfo<?>> keysMap = mapModuleName.get(moduleName);
+        Map<String, KeyItem<?,?>> keysMap = mapModuleName.get(moduleName);
 
         // get() return null if no such key.
         if (keysMap == null)
@@ -135,11 +135,11 @@ public class KeysManager
      * @throws UnknownKeyException if no key inside the module named keyName.
      */
     @NonNull
-    public DJIKeyInfo<?> getKeyInfo(@NonNull String moduleName, @NonNull String keyName)
+    public KeyItem<?,?> getKeyInfo(@NonNull String moduleName, @NonNull String keyName)
             throws UnknownModuleException, UnknownKeyException
     {
         // Search the module map for the module name.
-        DJIKeyInfo<?> keyInfo = getModuleMap(moduleName).get(keyName);
+        KeyItem<?,?> keyInfo = getModuleMap(moduleName).get(keyName);
 
         // get() return null if no such key.
         if (keyInfo == null)

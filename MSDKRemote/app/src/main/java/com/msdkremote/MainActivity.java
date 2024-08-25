@@ -27,6 +27,7 @@ import com.msdkremote.networkstate.NetworkMonitor;
 import java.net.InetAddress;
 import java.util.Locale;
 
+import dji.sdk.keyvalue.key.CameraKey;
 import dji.sdk.keyvalue.key.FlightControllerKey;
 import dji.sdk.keyvalue.key.KeyTools;
 import dji.sdk.keyvalue.key.RemoteControllerKey;
@@ -39,6 +40,7 @@ import dji.v5.manager.KeyManager;
 import dji.v5.manager.SDKManager;
 import dji.v5.manager.datacenter.camera.CameraStreamManager;
 import dji.v5.manager.interfaces.ICameraStreamManager;
+import pl.droidsonroids.gif.GifImageView;
 
 public class MainActivity extends AppCompatActivity
 {
@@ -328,6 +330,20 @@ public class MainActivity extends AppCompatActivity
                             surfaceView.getHeight(),
                             ICameraStreamManager.ScaleType.CENTER_INSIDE
                     );
+                }
+        );
+
+        KeyManager.getInstance().listen(
+                KeyTools.createKey(CameraKey.KeyConnection),
+                this,
+                (ignore, connected) -> {
+                    GifImageView imageView = findViewById(R.id.videoNoSignal);
+
+                    if (connected == null || !connected)
+                        imageView.setVisibility(View.VISIBLE);
+
+                    else
+                        imageView.setVisibility(View.INVISIBLE);
                 }
         );
     }

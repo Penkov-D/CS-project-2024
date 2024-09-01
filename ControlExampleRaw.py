@@ -2,64 +2,59 @@ import socket
 import keyboard
 import time
 
-HOST = '10.0.0.5'
-PORT_VIDEO = 9998
-
+# Set IP and port
+HOST = '10.0.0.6'
+PORT_CONTROL = 9998
 
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sCommand:
 
-    sCommand.connect((HOST, PORT_VIDEO))
+    # Connect the control module
+    sCommand.connect((HOST, PORT_CONTROL))
 
+    # Press 'x' to close the program.
+    while not keyboard.is_pressed('x'):
 
-    while True:
-
+        # Delay a bit the command update, to not spam the server.
+        # 100ms, means 10Hz, 10 command per second.
         time.sleep(0.1)
 
-        lh = 0.0
-        lv = 0.0
-        rh = 0.0
-        rv = 0.0
+        # Core movement variables
+        yaw = 0.0
+        ascent = 0.0
+        roll = 0.0
+        pitch = 0.0
 
+        # Coefficients for movement
+        rotate_value = 0.1
         move_value = 0.03
 
-        if keyboard.is_pressed('a'):
-            lh = -move_value * 10
-        if keyboard.is_pressed('d'):
-            lh =  move_value * 10
-        if keyboard.is_pressed('s'):
-            lv = -move_value
-        if keyboard.is_pressed('w'):
-            lv =  move_value
+        # Change the movement variables according to key presses
+        if keyboard.is_pressed('a'): yaw = -rotate_value
+        if keyboard.is_pressed('d'): yaw =  rotate_value
+        if keyboard.is_pressed('s'): ascent = -move_value
+        if keyboard.is_pressed('w'): ascent =  move_value
 
-        if keyboard.is_pressed('left'):
-            rh = -move_value
-        if keyboard.is_pressed('right'):
-            rh =  move_value
-        if keyboard.is_pressed('down'):
-            rv = -move_value
-        if keyboard.is_pressed('up'):
-            rv =  move_value
+        if keyboard.is_pressed('left'): roll = -move_value
+        if keyboard.is_pressed('right'): roll =  move_value
+        if keyboard.is_pressed('down'): pitch = -move_value
+        if keyboard.is_pressed('up'): pitch =  move_value
         
-        command = f'rc {lh:.2f} {lv:.2f} {rh:.2f} {rv:.2f}'
+        # Command syntax example : "rc -0.100 0.231 0.000 -0.009"
+        command = f'rc {yaw:.2f} {ascent:.2f} {roll:.2f} {pitch:.2f}'
 
-        if keyboard.is_pressed('f'):
-            command = 'takeoff'
+        # Special commands
+        if keyboard.is_pressed('f'): command = 'takeoff'
+        if keyboard.is_pressed('r'): command = 'land'
+        if keyboard.is_pressed('e'): command = 'enable'
+        if keyboard.is_pressed('q'): command = 'disable'
 
-        if keyboard.is_pressed('r'):
-            command = 'land'
-
-        if keyboard.is_pressed('e'):
-            command = 'enable'
-
-        if keyboard.is_pressed('q'):
-            command = 'disable'
-
+        # Send the command
         sCommand.sendall(bytes(command + '\r\n', 'utf-8'))
 
+        # Wait for return message
         data = sCommand.recv(10000, )
         if len(data) == 0:
             break
 
         print('Data size: ', len(data), 'bytes')
-
         print(data)

@@ -1,5 +1,7 @@
 import socket
-from threading import Thread
+from threading import Thread, Lock
+import queue
+import time
 
 import av
 import av.codec
@@ -51,9 +53,9 @@ class OpenDJI:
 
         # All network is set.
 
-        # Set video thread
+        # Set background threads
         self._background_frames = BackgroundVideoCodec(self._socket_video)
-
+        self._background_control_messages = BackgroundCommandsQueue(self._socket_control)
 
     
 
@@ -78,15 +80,32 @@ class OpenDJI:
         self._background_frames.stop(0)
 
 
+
     ###### Video methods ######
 
     def getFrame(self):
+        """
+        Retrive the latest frame available, or None if no frame available.
+        """
         return self._background_frames.read()
 
+
     def frameListener(self, eventHandler : EventListener):
+        """
+        Set frame listener - an EventListener class that will be called on
+        every new frame.
+
+        Args:
+            eventHandler (EventListener): a class that defines what to do when
+                the drone receive new frame.
+        """
         self._background_frames.registerListener(eventHandler)
 
+
     def removeFrameListener(self):
+        """
+        Remove the frame listener (if was set) by frameListener(listener) method.
+        """
         self._background_frames.unregisterListener()
 
 
@@ -103,38 +122,126 @@ class OpenDJI:
         """
         sock.send(bytes(command + '\r\n', 'utf-8'))
 
+
+    def move(self, rcw : float, du : float, lr : float, bf : float, get_result: bool = False) -> str | None:
+        """
+        Set drone movements forces - parameters equal to control stick movement.
+        All values are real numbers between -1.0 to 1.0, where 0.0 is no movement.
+
+        Args:
+            rcw (float): rotate clock wise (1.0), or anti clockwise (-1.0).
+            du (float): move downward (-1.0) or upward (1.0).
+            lr (float): move to the left (-1.0) or to the right (1.0).
+            bf (float): move backward (-1.0) or forward (1.0).
+            get_result (bool): to flag if to wait for response from the server.
+        
+        Return:
+            Message from server (str) if get_result is true, else None.
+        """
+        def clip1(value):
+            return min(1.0, max(-1.0, value))
+        
+        # Make sure the values are between -1.0 and 1.0
+        rcw = clip1(rcw)
+        du = clip1(du)
+        lr = clip1(lr)
+        bf = clip1(bf)
+
+        # Send the command
+        command = f'rc {rcw:.4f} {du:.2f} {lr:.2f} {bf:.2f}'
+        self.send_command(self._socket_control, command)
+
+        # Return result:
+        if get_result:
+            return self._background_control_messages.read()
+        else:
+            self._background_control_messages.disposeNext()
+
+
+    def enableControl(self, get_result: bool = False) -> str | None:
+        """
+        Enable the control. This command is crucial before making movements,
+        as this command removes the control from the remote controller and give
+        control over the drone to the application.
+
+        Args:
+            get_result (bool): to flag if to wait for response from the server.
+        
+        Return:
+            Message from server (str) if get_result is true, else None.
+        """
+        self.send_command(self._socket_control, "enable")
+
+        # Return result:
+        if get_result:
+            return self._background_control_messages.read()
+        else:
+            self._background_control_messages.disposeNext()
+
+
+    def disableControl(self, get_result: bool = False) -> str | None:
+        """
+        Disable the control. This command is crucial after controlling the
+        drone, as this command removes the control from the program, and
+        give it back to the remote controller.
+
+        Args:
+            get_result (bool): to flag if to wait for response from the server.
+        
+        Return:
+            Message from server (str) if get_result is true, else None.
+        """
+        self.send_command(self._socket_control, "disable")
+
+        # Return result:
+        if get_result:
+            return self._background_control_messages.read()
+        else:
+            self._background_control_messages.disposeNext()
+
+
+    def takeoff(self, get_result: bool = False) -> str | None:
+        """
+        Takeoff the drone.
+
+        Args:
+            get_result (bool): to flag if to wait for response from the server.
+        
+        Return:
+            Message from server (str) if get_result is true, else None.
+        """
+        self.send_command(self._socket_control, "takeoff")
+
+        # Return result:
+        if get_result:
+            return self._background_control_messages.read()
+        else:
+            self._background_control_messages.disposeNext()
+
+
+    def land(self, get_result: bool = False) -> str | None:
+        """
+        land the drone.
+
+        Args:
+            get_result (bool): to flag if to wait for response from the server.
+        
+        Return:
+            Message from server (str) if get_result is true, else None.
+        """
+        self.send_command(self._socket_control, "land")
+
+        # Return result:
+        if get_result:
+            return self._background_control_messages.read()
+        else:
+            self._background_control_messages.disposeNext()
+
     
-    def receive_message(self, sock : socket.socket) -> str:
-        """
-        Receives the next message from the server.
-        """
-    
 
-    def move(self, rcw : float, dw : float, lr : float, bf : float, ):
-        """
-        Move the drone
-        """
-        pass
-
-    def enableControl(self):
-        pass
-
-    def disableControl(self):
-        pass
-
-    def takeoff(self):
-        pass
-
-    def land(self):
-        pass
-
-    
     ###### Key-Value methods ######
 
     def getValue(self, module, key):
-        pass
-
-    def getLastValue(self, module, key):
         pass
 
     def getValueAsync(self, module, key, eventHandler : EventListener):
@@ -164,6 +271,125 @@ class OpenDJI:
 
     def getKeyInfo(self, module, key):
         pass
+
+
+
+
+class BackgroundCommandsQueue:
+    """
+    Reading the return message from command server, in the background.
+    Helps disposing messages and make the messages order synchronized.
+
+    Note: this class used with the control server, which does not provide
+     clear message about which command the message is associated to,
+     and that may lead to misleading messages sometimes.
+
+    Note: this class implementation does not guarante message order on multi
+     threaded program. e.g. if read() and disposeNext() were called from two
+     different threades, even with clear order, it is not guaranteed which
+     message will be read and which disposed, as I want this class
+     implementation to be as simple as posible.
+     
+    Hint: if one would like to implement so, you would have to use another lock,
+     and to add another queue, request_orders, so the order is preserved,
+     and the lock will guarante that reading from the messages queue is
+     synchronized with the requests queue.
+    """
+
+    def __init__(self, sock : socket.socket):
+        """
+        Initiate background messages receiver from a command manager.
+
+        Args:
+            sock (socket.socket): socket receiving the messages from.
+        """
+        # Internal variables
+        self._sock = sock
+        self._queue = queue.Queue()
+        self._live = True
+        self._message = ""
+        self._dispose = 0
+        self._dispose_lock = Lock()
+
+        # Starting the background thread
+        self._thread = Thread(target = self.__ReadMessages__)
+        self._thread.daemon = True
+        self._thread.start()
+
+
+    def __ReadMessages__(self):
+        """
+        Reads messages in the background
+        """
+        
+        # Iterate while flag is on.
+        while self._live:
+
+            # Read data, and close thread if socket is down.
+            data = self._sock.recv(1 << 20) # 1MB
+            if len(data) == 0:
+                break
+
+            # Add the data to the total message,
+            #  meging messages that araived splited.
+            self._message += data.decode("utf-8")
+
+            # Add all available complete messages to the queue
+            messages_list = self._message.split("\r\n")
+
+            # Remove message marked to despose:
+            while len(messages_list) > 1 and self._dispose > 0:
+                messages_list.pop(0)
+                with self._dispose_lock:
+                    self._dispose -= 1
+            
+            # Add the remaining messages to be read.
+            for message in messages_list[:-1]:  # Without the last.
+                self._queue.put(message)
+
+            # The last message didn't end with '\r\n',
+            # and if was, then message_list[-1] = "".
+            self._message = messages_list[-1]
+        
+
+    def read(self, block: bool = True, timeout: float | None = None) -> str | None:
+        """
+        Try to read a message from the server, with blocking mechanism,
+        and timeout option.
+
+        Args:
+            block (bool): True to block, false to non-block.
+            timeout (float | None): set timeout to wait for message,
+                or None to wait indefinitely.
+
+        Return:
+            string of the last message, if available, or None if no message.
+        """
+        try:
+            return self._queue.get(block)
+        except queue.Empty:
+            self.disposeNext()
+        return None
+
+
+    def disposeNext(self):
+        """ Set to dispose (ignore) the next received message. """
+        with self._dispose_lock:
+            self._dispose += 1
+
+
+    def stop(self, timeout : float | None = None):
+        """
+        Stop the thread. (Also closes the socket)
+
+        Args:
+            timeout (float | None): timeout for the operation in seconds,
+                or None to wait indefenetly.
+        """
+        self._live = False
+        self._sock.close()
+        self._thread.join(timeout)
+
 
 
 

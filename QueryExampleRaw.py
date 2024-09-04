@@ -2,7 +2,7 @@ import socket
 import threading
 import time
 
-HOST = '10.0.0.5'
+HOST = '10.0.0.6'
 PORT_VIDEO = 9997
 
 

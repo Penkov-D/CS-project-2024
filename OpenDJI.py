@@ -1,18 +1,15 @@
 import socket
-from threading import Thread, Lock
+from threading import Thread, Lock, Event
 import queue
 import time
+import re
 
 import av
 import av.codec
 
 class EventListener:
-
     def onValue(self, value):
         raise NotImplementedError("onValue not implemented")
-
-    def onError(self, ):
-        raise NotImplementedError("onError not implemented")
 
 
 class OpenDJI:
@@ -56,6 +53,7 @@ class OpenDJI:
         # Set background threads
         self._background_frames = BackgroundVideoCodec(self._socket_video)
         self._background_control_messages = BackgroundCommandsQueue(self._socket_control)
+        self._background_query_messages = BackgroundCommandListener(self._socket_query)
 
     
 
@@ -77,7 +75,9 @@ class OpenDJI:
         self._socket_control.close()
         self._socket_query.close()
 
-        self._background_frames.stop(0)
+        self._background_frames.stop()
+        self._background_control_messages.stop()
+        self._background_query_messages.stop()
 
 
 
@@ -242,35 +242,247 @@ class OpenDJI:
     ###### Key-Value methods ######
 
     def getValue(self, module, key):
-        pass
+        """
+        """
+        return self._background_query_messages.readOnce(
+            f"{module} {key}",
+            f"get {module} {key}"
+        )
 
-    def getValueAsync(self, module, key, eventHandler : EventListener):
-        pass
 
     def listen(self, module, key, eventHandler : EventListener):
-        pass
+        """
+        """
+        self._background_query_messages.setListener(
+            f"{module} {key}",
+            eventHandler
+        )
+        self._background_query_messages.send_command(
+            f"listen {module} {key}"
+        )
     
+
     def unlisten(self, module, key):
-        pass
+        """
+        """
+        self._background_query_messages.removeListener(
+            f"{module} {key}",
+        )
+        return self._background_query_messages.readOnce(
+            f"{module} {key}",
+            f"unlisten {module} {key}"
+        )
+
 
     def setValue(self, module, key, value):
-        pass
+        """
+        """
+        return self._background_query_messages.readOnce(
+            f"{module} {key}",
+            f"set {module} {key} {value}"
+        )
+
 
     def action(self, module, key, value = None):
-        pass
+        """
+        """
+        if value is None:
+            return self._background_query_messages.readOnce(
+                f"{module} {key}",
+                f"action {module} {key}"
+            )
+        
+        else:
+            return self._background_query_messages.readOnce(
+                f"{module} {key}",
+                f"action {module} {key} {value}"
+            )
 
 
     def help(self, module = None, key = None):
-        pass
+        """
+        """
+        if module is None:
+            return self._background_query_messages.readUnbound(
+                "help"
+            )
+        
+        if key is None:
+            return self._background_query_messages.readUnbound(
+                f"help {module}"
+            )
+        
+        else:
+            return self._background_query_messages.readUnbound(
+                f"help {module} {key}"
+            )
+
 
     def getModules(self):
-        pass
+        return self.help()
+
 
     def getModuleKeys(self, module):
-        pass
+        return self.help(module)
+
 
     def getKeyInfo(self, module, key):
-        pass
+        return self.help(module, key)
+
+
+
+
+class BackgroundCommandListener:
+    """
+    """
+
+    def __init__(self, sock : socket.socket):
+        """
+        Initiate background messages receiver from a command manager.
+
+        Args:
+            sock (socket.socket): socket receiving the messages from.
+        """
+        # Internal variables
+        self._send_lock = Lock()
+        self._sock = sock
+        self._live = True
+
+        self._listeners = {}
+        self._listeners_lock = Lock()
+
+        self._listeners_onces_event = {}
+        self._listeners_onces_result = {}
+        self._listeners_onces_lock = Lock()
+
+        self._unbound_messages = queue.Queue()
+        self._message = ""
+
+        # Starting the background thread
+        self._thread = Thread(target = self.__ReadMessages__)
+        self._thread.daemon = True
+        self._thread.start()
+
+
+
+    def __ReadMessages__(self):
+        """
+        Reads messages in the background
+        """
+        
+        # Iterate while flag is on.
+        while self._live:
+
+            # Read data, and close thread if socket is down.
+            try:
+                data = self._sock.recv(1 << 20) # 1MB
+                if len(data) == 0:
+                    break
+            except ConnectionAbortedError:
+                break
+
+            # Add the data to the total message,
+            #  meging messages that araived splited.
+            self._message += data.decode("utf-8")
+
+            # Add all available complete messages to the queue
+            messages_list = self._message.split("\r\n")
+            
+            # Add the remaining messages to be read.
+            for message in messages_list[:-1]:  # Without the last.
+
+                # If the message starts with "{", it is probably help message,
+                # and if it has less then two spaces, no key can be extracted,
+                # in both cases this message is more likly to be general
+                if message.startswith("{") or message.count(" ") < 2:
+                    self._unbound_messages.put(message)
+                    continue
+
+                message_parts = message.split(" ", 2)
+                unique_key = message_parts[0] + " " + message_parts[1]
+                message_trimed = message_parts[2]
+
+                with self._listeners_onces_lock:
+                    if unique_key in self._listeners_onces_event:
+                        self._listeners_onces_result[unique_key] = message_trimed
+                        self._listeners_onces_event[unique_key].set()
+                        del self._listeners_onces_event[unique_key]
+                        continue
+
+                with self._listeners_lock:
+                    if unique_key in self._listeners:
+                        listener : EventListener = self._listeners[unique_key]
+                        listener.onValue(message_trimed)
+                        continue
+                
+                self._unbound_messages.put(message)
+
+            # The last message didn't end with '\r\n',
+            # and if was, then message_list[-1] = "".
+            self._message = messages_list[-1]
+    
+
+    def send_command(self, command : str) -> None:
+        """
+        Sends a command over the socket, with 'TELNET' like protocol.
+
+        Args:
+            command (str): string to send.
+        """
+        with self._send_lock:
+            self._sock.send(bytes(command + '\r\n', 'utf-8'))
+
+
+    def readOnce(self, unique_key, command) -> str:
+
+        event = Event()
+
+        with self._listeners_onces_lock:
+            if unique_key in self._listeners_onces_event:
+                event = self._listeners_onces_event[unique_key]
+            else:
+                self._listeners_onces_event[unique_key] = event
+                self.send_command(command)
+
+        event.wait()
+        return self._listeners_onces_result[unique_key]
+    
+
+    def readUnbound(self, command : str) -> str:
+
+        self.send_command(command)
+        return self._unbound_messages.get()
+    
+
+    def setListener(self, unique_key, listener : EventListener):
+
+        with self._listeners_lock:
+            self._listeners[unique_key] = listener
+
+    
+    def removeListener(self, unique_key):
+
+        with self._listeners_lock:
+            if unique_key in self._listeners:
+                del self._listeners[unique_key]
+
+
+    def stop(self, timeout : float | None = None):
+        """
+        Stop the thread. (Also closes the socket)
+
+        Args:
+            timeout (float | None): timeout for the operation in seconds,
+                or None to wait indefenetly.
+        """
+        self._live = False
+        self._sock.close()
+        self._thread.join(timeout)
+
+
+
+
+
 
 
 
@@ -326,8 +538,11 @@ class BackgroundCommandsQueue:
         while self._live:
 
             # Read data, and close thread if socket is down.
-            data = self._sock.recv(1 << 20) # 1MB
-            if len(data) == 0:
+            try:
+                data = self._sock.recv(1 << 20) # 1MB
+                if len(data) == 0:
+                    break
+            except ConnectionAbortedError:
                 break
 
             # Add the data to the total message,
@@ -436,8 +651,11 @@ class BackgroundVideoCodec:
         while self._live:
 
             # Read data, and close thread if socket is down.
-            data = self._sock.recv(1 << 20) # 1MB
-            if len(data) == 0:
+            try:
+                data = self._sock.recv(1 << 20) # 1MB
+                if len(data) == 0:
+                    break
+            except ConnectionAbortedError:
                 break
 
             # Iterate thru the packets from the data,

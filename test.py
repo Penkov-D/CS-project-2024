@@ -2,45 +2,42 @@ from OpenDJI import OpenDJI
 from OpenDJI import EventListener
 
 import keyboard
+import time
 
 import cv2
 import numpy as np
+
+
+class PrintListener(EventListener):
+    def __init__(self, identifier = ""):
+        self._id = identifier
+
+    def onValue(self, value):
+        print(self._id, value)
 
 
 with OpenDJI("10.0.0.6") as drone:
 
     # drone.frameListener(frameListener())
     
-    while not keyboard.is_pressed('x'):
+    drone.listen("RemoteController", "StickLeftVertical", PrintListener("Left Vertical"))
+    drone.listen("RemoteController", "StickLeftHorizontal", PrintListener("Left Horizontal"))
+    drone.listen("RemoteController", "StickRightVertical", PrintListener("Right Vertical"))
+    drone.listen("RemoteController", "StickRightHorizontal", PrintListener("Right Horizontal"))
 
-        lh = 0.0
-        lv = 0.0
-        rh = 0.0
-        rv = 0.0
-        move_value = 0.03
+    
+    while not keyboard.is_pressed("space"):
+        pass
 
-        if keyboard.is_pressed('a'): lh = -move_value * 10
-        if keyboard.is_pressed('d'): lh =  move_value * 10
-        if keyboard.is_pressed('s'): lv = -move_value
-        if keyboard.is_pressed('w'): lv =  move_value
+    time.sleep(0.1)
 
-        if keyboard.is_pressed('left'): rh = -move_value
-        if keyboard.is_pressed('right'): rh =  move_value
-        if keyboard.is_pressed('down'): rv = -move_value
-        if keyboard.is_pressed('up'): rv =  move_value
-        
-        print(drone.move(lh, lv, rh, rv, True))
+    drone.unlisten("RemoteController", "StickRightVertical")
+    drone.unlisten("RemoteController", "StickRightHorizontal")
 
-        if keyboard.is_pressed('f'): print(drone.takeoff(True))
-        if keyboard.is_pressed('r'): print(drone.land(True))
-        if keyboard.is_pressed('e'): print(drone.enableControl(True))
-        if keyboard.is_pressed('q'): print(drone.disableControl(True))
+    while not keyboard.is_pressed("space"):
+        pass
 
-
-        frame = drone.getFrame()
-        if frame is None:
-            frame = np.zeros((200, 200, 3))
-        
-        frame = cv2.resize(frame, dsize = None, fx = 0.25, fy = 0.25)
-        cv2.imshow("window", frame)
-        cv2.waitKey(100)
+    drone.unlisten("RemoteController", "StickLeftVertical")
+    drone.unlisten("RemoteController", "StickLeftHorizontal")
+    drone.unlisten("RemoteController", "StickRightVertical")
+    drone.unlisten("RemoteController", "StickRightHorizontal")

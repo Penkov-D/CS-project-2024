@@ -6,6 +6,7 @@ import android.util.Log;
 import android.view.Surface;
 import android.view.SurfaceView;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.ImageView;
@@ -21,6 +22,7 @@ import com.msdkremote.commandserver.CommandServerStateListener;
 import com.msdkremote.livecontrol.ActionCallback;
 import com.msdkremote.livecontrol.ControlServerManager;
 import com.msdkremote.livecontrol.regularStickManager.RegularStickManager;
+import com.msdkremote.livequery.QueryServerManager;
 import com.msdkremote.livevideo.VideoServerManager;
 import com.msdkremote.networkstate.NetworkMonitor;
 
@@ -55,6 +57,9 @@ public class MainActivity extends AppCompatActivity
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        // The app will stay on as long the activity is visible
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
         // Register the MSDK once it was opened
         if (!SDKManager.getInstance().isRegistered()) {
             Log.i(TAG, "onCreate(): Registering the MSDK.");
@@ -85,9 +90,11 @@ public class MainActivity extends AppCompatActivity
 
         CheckBox checkBoxVideo = findViewById(R.id.checkBoxVideoServer);
         CheckBox checkBoxControl = findViewById(R.id.checkBoxControlServer);
+        CheckBox checkBoxQuery = findViewById(R.id.checkBoxQueryServer);
 
         TextView textViewVideoStatus = findViewById(R.id.textViewVideoStatus);
         TextView textViewControlStatus = findViewById(R.id.textViewControlStatus);
+        TextView textViewQueryStatus = findViewById(R.id.textViewQueryStatus);
 
         // Set video server check box handler
         checkBoxVideo.setOnCheckedChangeListener(
@@ -155,6 +162,55 @@ public class MainActivity extends AppCompatActivity
                     }
                 }
         );
+
+        // Set query server status text view
+        QueryServerManager.getInstance().setStateListener(
+                new CommandServerStateListener() {
+                    @Override
+                    public void onServerRunning() {
+                        textViewQueryStatus.setText(R.string.query_server_running);
+                    }
+
+                    @Override
+                    public void onServerClosed() {
+                        textViewQueryStatus.setText(R.string.query_server_not_running);
+                    }
+
+                    @Override
+                    public void onServerException(Exception e) {
+                        textViewQueryStatus.setText(R.string.query_server_not_running_exception);
+                        Log.w(TAG, "Query server suffered from exception", e);
+                    }
+
+                    @Override
+                    public void onClientConnected(InetAddress address) {
+                        textViewQueryStatus.setText(String.format("%s - %s",
+                                getString(R.string.query_server_client_connected),
+                                address.getHostAddress()));
+                    }
+
+                    @Override
+                    public void onClientDisconnected() {
+                        textViewQueryStatus.setText(R.string.query_server_running);
+                    }
+                }
+        );
+
+        // Set query server check box handler
+        checkBoxQuery.setOnCheckedChangeListener(
+                (buttonView, isChecked) -> {
+                    if (isChecked) {
+                        QueryServerManager.getInstance().startServer(9997);
+                    }
+                    else {
+                        try {
+                            QueryServerManager.getInstance().killServer();
+                        } catch (InterruptedException e) {
+                            Log.w(TAG, "Interrupted exception while closing query server", e);
+                        }
+                    }
+                }
+        );
     }
 
 
@@ -184,8 +240,6 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    private CommandServer serverThread;
-
 
     /**
      * This method will be called when the MSDK is activated.
@@ -201,6 +255,9 @@ public class MainActivity extends AppCompatActivity
 
         // Start command server
         ControlServerManager.getInstance().startServer(9998);
+
+        // Start query server
+        QueryServerManager.getInstance().startServer(9997);
 
         // Set controller status views
         setControllerViews();
@@ -346,6 +403,9 @@ public class MainActivity extends AppCompatActivity
 
             // Close control server
             ControlServerManager.getInstance().killServer();
+
+            // Close query server
+            QueryServerManager.getInstance().killServer();
         }
         catch (InterruptedException e) {
             Log.e(TAG, "onUnregistered: Interrupted Exception occurred on UI thread");

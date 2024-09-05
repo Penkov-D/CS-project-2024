@@ -86,6 +86,7 @@ class ControlCommandHandler implements CommandHandler
                         commandServer.sendMessage(error.toString());
                     }
                 });
+                break;
 
             case "rc":
 

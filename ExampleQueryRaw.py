@@ -2,6 +2,13 @@ import socket
 import threading
 import time
 
+"""
+This example show how to talk with the MSDK over sockets.
+The help information (command '?') will explain how to use this
+more sophisticatedly.
+"""
+
+# IP and port address
 HOST = '10.0.0.6'
 PORT_VIDEO = 9997
 
@@ -56,6 +63,9 @@ FlightController LEDsSettings success
 
 
 def read_message(sock):
+    """
+    Read the message (and print them) in the background.
+    """
     
     while True:
         try:
@@ -75,8 +85,10 @@ print()
 print("  Type '?' to show helping message.")
 print()
 
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sCommand:
 
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sCommand:
+    
+    # Connect to the drone
     sCommand.connect((HOST, PORT_VIDEO))
 
     # Retrive the output in the background - mainly for 'listen' commands.
@@ -85,9 +97,11 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sCommand:
     thread.start()
 
     while True:
-
+        
+        # Get command
         command = input("> ")
 
+        # Special commands
         if command == "": continue
         if command.isspace(): continue
         if command == "quit": break
@@ -96,7 +110,8 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sCommand:
         if command == "?":
             print(info)
             continue
-
+        
+        # not special command - send it to the drone.
         sCommand.sendall(bytes(command + '\r\n', 'utf-8'))
         # Give a moment to read the output
         time.sleep(0.5)

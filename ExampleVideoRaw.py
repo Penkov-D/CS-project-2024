@@ -3,6 +3,13 @@ import av
 import av.codec
 import cv2
 
+"""
+In this example you will see how the retrieve the drone images using raw sockets,
+and how to process it fron bytes to frames.
+
+    press Q - to close the problam
+"""
+
 # Set IP and port
 HOST = '10.0.0.6'
 PORT_VIDEO = 9999

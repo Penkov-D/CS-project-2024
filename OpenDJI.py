@@ -1,18 +1,29 @@
 import socket
 from threading import Thread, Lock, Event
 import queue
-import time
-import re
 
 import av
 import av.codec
 
+
 class EventListener:
-    def onValue(self, value):
+    """
+    Event Listener - "abstract" class to give for asynchronous functions.
+    """
+    def onValue(self, value : str | None):
+        """
+        called each time a the value is updated.
+        """
         raise NotImplementedError("onValue not implemented")
 
 
 class OpenDJI:
+    """
+    OpenDJI - class wrapper for the MSDK Remote application.
+    This class gives all the functionality that the application exports,
+    getting live video stream, controlling the drone in live, like the joystick,
+    and making queries on the drone / controller to for telemetry or other uses.
+    """
 
     # Available Modules
     MODULE_GIMBAL = "Gimbal"
@@ -28,7 +39,15 @@ class OpenDJI:
     PORT_CONTROL = 9998
     PORT_QUERY   = 9997
 
-    def __init__(self, host):
+    def __init__(self, host : str):
+        """
+        Connect the class to a drone. Given 'host' IP address, the constructor
+        connects on all the data ports to the application.
+        The IP can be obtained from the application window.
+
+        Args:
+            host (str): the IP address of the phone with an open MSDK Remote.
+        """
 
         self.host_address = host
 
@@ -38,17 +57,19 @@ class OpenDJI:
         self._socket_query = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         try:
+            # Try to connect on all the ports
             self._socket_video.connect((self.host_address, self.PORT_VIDEO))
             self._socket_control.connect((self.host_address, self.PORT_CONTROL))
             self._socket_query.connect((self.host_address, self.PORT_QUERY))
             
         except Exception as e:
+            # In exception, close all the ports
             self._socket_video.close()
             self._socket_control.close()
             self._socket_query.close()
             raise
 
-        # All network is set.
+        # In this point - all network is set.
 
         # Set background threads
         self._background_frames = BackgroundVideoCodec(self._socket_video)
@@ -59,10 +80,12 @@ class OpenDJI:
 
     ###### Object handling methods ######
 
+    # Called on command like "with OpenDJI(...) as drone:"
     def __enter__(self):
         return self
 
 
+    # Called when the scope of 'with' is ended
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
 
@@ -241,92 +264,166 @@ class OpenDJI:
 
     ###### Key-Value methods ######
 
-    def getValue(self, module, key):
+    def getValue(self, module : str, key : str) -> str:
         """
+        Get value of a specific key.
+        This method is blocking, and waits for the result.
+
+        Args:
+            module (str): the module of the key.
+            key (str): the key to send the get query on.
         """
+        # Send the 'get' command and wait for result.
         return self._background_query_messages.readOnce(
             f"{module} {key}",
             f"get {module} {key}"
         )
 
 
-    def listen(self, module, key, eventHandler : EventListener):
+    def listen(self, module : str, key : str, eventHandler : EventListener) -> None:
         """
+        Set listener on value of a specific key.
+        This method is not blocking, and once the listener is set,
+        it return.
+
+        Args:
+            module (str): the module of the key.
+            key (str): the key to send the get query on.
+            eventHandler (EventListener): the listener to be called on new values
+                of this listener. Must implement "onValue(self, value)" !
         """
+        # Set the listener.
         self._background_query_messages.setListener(
             f"{module} {key}",
             eventHandler
         )
+        # Send command to 'listen' on the value.
         self._background_query_messages.send_command(
             f"listen {module} {key}"
         )
     
 
-    def unlisten(self, module, key):
+    def unlisten(self, module : str, key : str) -> None:
         """
+        Remove the listener from a specific key.
+        This method is blocking, and wait for the remote to answer on the request.
+
+        Args:
+            module (str): the module of the key.
+            key (str): the key to send the get query on.
         """
-        self._background_query_messages.removeListener(
-            f"{module} {key}",
-        )
-        return self._background_query_messages.readOnce(
+        # First unlisten on the method,
+        result = self._background_query_messages.readOnce(
             f"{module} {key}",
             f"unlisten {module} {key}"
         )
+        # Then remove the listener from the internal dictionary
+        self._background_query_messages.removeListener(
+            f"{module} {key}",
+        )
+        return result
 
 
-    def setValue(self, module, key, value):
+    def setValue(self, module : str, key : str, value : str) -> str:
         """
+        Set value to a specific key.
+        This method is blocking, and wait for the remote to answer on the request.
+
+        Args:
+            module (str): the module of the key.
+            key (str): the key to send the get query on.
+            value (str): the value to set on the desired key.
         """
+        # Send the set request and wait for result.
         return self._background_query_messages.readOnce(
             f"{module} {key}",
             f"set {module} {key} {value}"
         )
 
 
-    def action(self, module, key, value = None):
+    def action(self, module : str, key : str, value : None | str = None) -> str:
         """
+        Send action on a spedific key.
+        This method is blocking, and wait for the remote to answer on the request.
+        The working principel is similar to 'set', but DJI makes the division
+        between the two types.
+
+        Args:
+            module (str): the module of the key.
+            key (str): the key to send the get query on.
+            value (str): the value to set on the desired key.
         """
+        # If there is no value for this action:
         if value is None:
+            # Send action request and wait for the result.
             return self._background_query_messages.readOnce(
                 f"{module} {key}",
                 f"action {module} {key}"
             )
         
+        # If there is value for this action:
         else:
+            # Send action request and wait for the result.
             return self._background_query_messages.readOnce(
                 f"{module} {key}",
                 f"action {module} {key} {value}"
             )
 
 
-    def help(self, module = None, key = None):
+    def help(self, module: str | None = None, key: str | None = None) -> str:
         """
+        Send a 'help' command, with or without a module name, and key.
+
+        Args:
+            module (str | None): the module name to help with,
+                or None, if you want to retrieve the available modules.
+            key (str | None): the key to help with,
+                or None to get the key of module (if it is not None).
         """
+        # If no module - retrieve the available modules.
         if module is None:
             return self._background_query_messages.readUnbound(
                 "help"
             )
         
+        # If no key but module - retrieve the abailables keys of the module.
         if key is None:
             return self._background_query_messages.readUnbound(
                 f"help {module}"
             )
         
+        # If key and module - retrieve information about specific key.
         else:
             return self._background_query_messages.readUnbound(
                 f"help {module} {key}"
             )
 
 
-    def getModules(self):
+    def getModules(self) -> str:
+        """
+        Get availables modules.
+        """
         return self.help()
 
 
-    def getModuleKeys(self, module):
+    def getModuleKeys(self, module: str) -> str:
+        """
+        Get availables keys inside a module.
+
+        Args:
+            module (str): the module name to help with.
+        """
         return self.help(module)
 
 
-    def getKeyInfo(self, module, key):
+    def getKeyInfo(self, module : str, key : str) -> str:
+        """
+        Get information about specific key.
+
+        Args:
+            module (str): the module name to help with.
+            key (str): the key name inside the module to help with.
+        """
         return self.help(module, key)
 
 
@@ -334,6 +431,9 @@ class OpenDJI:
 
 class BackgroundCommandListener:
     """
+    Managing all the queries from the application.
+    Help with setting listeners, get values once, get message from help commands,
+    both synchronously and asynchronously.
     """
 
     def __init__(self, sock : socket.socket):
@@ -348,13 +448,16 @@ class BackgroundCommandListener:
         self._sock = sock
         self._live = True
 
+        # Dict of the listeners
         self._listeners = {}
         self._listeners_lock = Lock()
 
+        # Dict of one time messages events.
         self._listeners_onces_event = {}
         self._listeners_onces_result = {}
         self._listeners_onces_lock = Lock()
 
+        # Queue of messages without listeners
         self._unbound_messages = queue.Queue()
         self._message = ""
 
@@ -398,23 +501,29 @@ class BackgroundCommandListener:
                     self._unbound_messages.put(message)
                     continue
 
+                # Split the message to unique_key and the message itself.
                 message_parts = message.split(" ", 2)
                 unique_key = message_parts[0] + " " + message_parts[1]
                 message_trimed = message_parts[2]
 
+                # Check if event is registered on the unique_key
                 with self._listeners_onces_lock:
                     if unique_key in self._listeners_onces_event:
+                        # Call the event and remove it (it was registered for one time)
                         self._listeners_onces_result[unique_key] = message_trimed
                         self._listeners_onces_event[unique_key].set()
                         del self._listeners_onces_event[unique_key]
                         continue
 
+                # Check if listener was registered on the unique_key
                 with self._listeners_lock:
                     if unique_key in self._listeners:
+                        # Call the event listener
                         listener : EventListener = self._listeners[unique_key]
                         listener.onValue(message_trimed)
                         continue
                 
+                # Else, register it as unbounded message
                 self._unbound_messages.put(message)
 
             # The last message didn't end with '\r\n',
@@ -433,35 +542,61 @@ class BackgroundCommandListener:
             self._sock.send(bytes(command + '\r\n', 'utf-8'))
 
 
-    def readOnce(self, unique_key, command) -> str:
+    def readOnce(self, unique_key : str, command : str) -> str:
+        """
+        Send a command and wait for response on the unique_key
 
+        Args:
+            unique_key (str): the key to wait for event on.
+            command (str): the command to send while waiting.
+        """
         event = Event()
 
+        # Register the event
         with self._listeners_onces_lock:
+            # If unique_key is registered, wait on it also
             if unique_key in self._listeners_onces_event:
                 event = self._listeners_onces_event[unique_key]
+            # If it doesn't, register it and send the command
             else:
                 self._listeners_onces_event[unique_key] = event
                 self.send_command(command)
 
+        # Wait for the event to happen
         event.wait()
         return self._listeners_onces_result[unique_key]
     
 
     def readUnbound(self, command : str) -> str:
+        """
+        Read unbounded message but with a command.
 
+        Args:
+            command (str): the command to send while waiting.
+        """
         self.send_command(command)
         return self._unbound_messages.get()
     
 
-    def setListener(self, unique_key, listener : EventListener):
+    def setListener(self, unique_key : str, listener : EventListener) -> None:
+        """
+        Register a listener for the unique_key
 
+        Args:
+            unique_key (str): the key to listen on.
+            listener (EventListener): listener to register.
+        """
         with self._listeners_lock:
             self._listeners[unique_key] = listener
 
     
-    def removeListener(self, unique_key):
+    def removeListener(self, unique_key : str) -> None:
+        """
+        Remove listener from the list.
 
+        Args:
+            unique_key (str): the key to remove the listener from.
+        """
         with self._listeners_lock:
             if unique_key in self._listeners:
                 del self._listeners[unique_key]

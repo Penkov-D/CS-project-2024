@@ -2,6 +2,22 @@ import socket
 import keyboard
 import time
 
+"""
+In this example you can fly the drone with your keyboard!
+This example demonstrate how to control the drone using raw sockets.
+
+    press F - to takeoff the drone.
+    press R - to land the drone.
+    press E - to enable control from keyboard (joystick disabled)
+    press Q - to disable control from keyboard (joystick enabled)
+    press X - to close the problam
+
+    press W/S - to move up/down (ascent)
+    press A/D - to rotate left/right (yaw control)
+    press ↑/↓ - to move forward/backward (pitch)
+    press ←/→ - to move left/right (roll)
+"""
+
 # Set IP and port
 HOST = '10.0.0.6'
 PORT_CONTROL = 9998

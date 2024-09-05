@@ -3,6 +3,13 @@ from OpenDJI import OpenDJI
 import cv2
 import numpy as np
 
+"""
+In this example you will see how the retrieve the drone images synchronously,
+within the main function, with the OpenDJI class.
+
+    press Q - to close the problam
+"""
+
 # IP address of the connected android device
 IP_ADDR = "10.0.0.6"
 

@@ -4,6 +4,15 @@ from OpenDJI import EventListener
 import keyboard
 import time
 
+"""
+This example teaches how to register and remove a listener on the MSDK.
+In this specific example, the listener is used to receive the joystick position,
+and print the on the screen.
+
+    Press X - to close the program (and remove the listeners).
+    Play with the joysticks and see what happens!
+"""
+
 # IP address of the connected android device
 IP_ADDR = "10.0.0.6"
 

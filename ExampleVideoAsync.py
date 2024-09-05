@@ -4,6 +4,13 @@ from OpenDJI import EventListener
 import cv2
 import numpy as np
 
+"""
+In this example you will see how the retrieve the drone images asynchronously,
+using a listener, with the OpenDJI class.
+
+    press Q - to close the problam
+"""
+
 # IP address of the connected android device
 IP_ADDR = "10.0.0.6"
 

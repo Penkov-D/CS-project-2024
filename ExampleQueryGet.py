@@ -2,6 +2,12 @@ from OpenDJI import OpenDJI
 
 import re
 
+"""
+In this example you will have simple demo on how to get information fron the drone.
+This will show how the message is received and should parsed, in this example the 
+battery information from the remote controller is used.
+"""
+
 # IP address of the connected android device
 IP_ADDR = "10.0.0.6"
 
@@ -10,7 +16,7 @@ IP_ADDR = "10.0.0.6"
 with OpenDJI(IP_ADDR) as drone:
     
     # Get the battery info
-    battery_text = drone.getValue("RemoteController", "BatteryInfo")
+    battery_text = drone.getValue(OpenDJI.MODULE_REMOTECONTROLLER, "BatteryInfo")
     print("Original result :", battery_text)
 
     # you need to manually check for errors, and pharse the returned string

@@ -97,17 +97,22 @@ class SLAM:
         Args:
             file_path (str): Path to the file where the state will be saved.
         """
+        # Convert keypoints to a serializable format (tuples)
+        kp_prev_serializable = [(kp.pt, kp.size, kp.angle, kp.response, kp.octave, kp.class_id) for kp in self._kp_prev]
+        
+        state = {
+            'K': self._K,
+            'K_inv': self._K_inv,
+            'world_points': self._world_points,
+            'world_descriptors': self._world_descriptors,
+            'R_prev': self._R_prev,
+            't_prev': self._t_prev,
+            'des_prev': self._des_prev,
+            'kp_prev': kp_prev_serializable,
+            'scale': self._scale
+        }
+
         with open(file_path, 'wb') as file:
-            state = {
-                'K': self._K,
-                'world_points': self._world_points,
-                'world_descriptors': self._world_descriptors,
-                'R_prev': self._R_prev,
-                't_prev': self._t_prev,
-                'des_prev': self._des_prev,
-                'kp_prev': self._kp_prev,
-                'scale': self._scale
-            }
             pickle.dump(state, file)
 
     def import_state(self, file_path: str):
@@ -119,14 +124,21 @@ class SLAM:
         """
         with open(file_path, 'rb') as file:
             state = pickle.load(file)
-            self._K = state['K']
-            self._world_points = state['world_points']
-            self._world_descriptors = state['world_descriptors']
-            self._R_prev = state['R_prev']
-            self._t_prev = state['t_prev']
-            self._des_prev = state['des_prev']
-            self._kp_prev = state['kp_prev']
-            self._scale = state['scale']
+        
+        self._K = state['K']
+        self._K_inv = state['K_inv']
+        self._world_points = state['world_points']
+        self._world_descriptors = state['world_descriptors']
+        self._R_prev = state['R_prev']
+        self._t_prev = state['t_prev']
+        self._des_prev = state['des_prev']
+        
+        # Convert the tuples back into cv2.KeyPoint objects
+        self._kp_prev = [cv2.KeyPoint(x=pt[0][0], y=pt[0][1], size=pt[1], angle=pt[2], 
+                                    response=pt[3], octave=pt[4], class_id=pt[5]) 
+                        for pt in state['kp_prev']]
+        
+        self._scale = state['scale']
 
     def process_frame(self, curr_frame: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
@@ -271,8 +283,8 @@ class SLAM:
         for global_match in global_matches:
             self._unmatched_indices[global_match.trainIdx] = False
         unmatched = [m for m in matches if self._unmatched_indices[m.trainIdx]]
-                
-        if len(self._unmatched_indices) < 5:
+        
+        if len(unmatched) < 5:
             return
 
         # Extract 2D points for triangulation
@@ -281,7 +293,11 @@ class SLAM:
 
         # Triangulate new 3D points using the projection matrices of the previous and current frames
         P_prev = self._K @ np.hstack((self._R_prev, self._t_prev))
-        pts_4d_homogeneous = cv2.triangulatePoints(P_prev, P_curr, pts_prev.T, pts_curr.T)
+        try:
+            pts_4d_homogeneous = cv2.triangulatePoints(P_prev, P_curr, pts_prev.T, pts_curr.T)
+        except:
+            print(P_prev, P_curr, pts_prev.T, pts_curr.T)
+            exit(1)
 
         # print(len(self._world_points))
         

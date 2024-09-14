@@ -31,7 +31,7 @@ class SLAMSystem:
 
             # Process frame with SLAM
             R, t = slam.process_frame(frame)
-            
+            print(t.round(2))
             # Plot current position and heading on 2D map
             self._plot_position_heading(R, t)
             
@@ -146,7 +146,7 @@ class SLAMSystem:
             t (np.ndarray): Translation vector (3x1).
         """
         # Clear the previous plot
-        self.ax.clear()
+        # self.ax.clear()
         self.ax.grid(True)
         
         # Plot the current position
@@ -165,10 +165,8 @@ class SLAMSystem:
         self.ax.set_xlabel("X")
         self.ax.set_ylabel("Z")
         
-        # Add legend
-        self.ax.legend()
         
 sys = SLAMSystem()
 sys.create_3d_map(0, "myMap1")
-sys.navigate(0, "myMap1")
+# sys.navigate(0, "myMap1")
 # sys.plot_map("myMap1")

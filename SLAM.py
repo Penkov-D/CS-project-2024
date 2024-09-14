@@ -1,247 +1,301 @@
 import cv2
 import numpy as np
-from collections import defaultdict
-from scipy.spatial.transform import Rotation as R
+import pickle  # for saving and loading class state
 
-# RANSAC parameters
-RANSAC_PROB = 0.99         # Confidance level for RANSAC
+# RANSAC parameters for robustness
+RANSAC_PROB = 0.99         # Confidence level for RANSAC
 RANSAC_THRESHOLD = 1       # Maximum distance from point to epipolar line
 
 class SLAM:
-    def __init__(self, K, save_new_points = True):
+    def __init__(self, intrinsic_matrix: np.ndarray, save_new_points: bool = True):
         """
-        Initialize the SLAM system with the camera intrinsic matrix K.
-        """
-        self.K = K
-        self.K_inv = np.linalg.inv(K)
-        
-        self.R_prev, self.t_prev, self.des_prev, self.kp_prev = None, None, None, None
-        
-        self.world_points = np.array([])  # Global list of triangulated 3D points
-        self.world_descriptors = np.array([])  # Global list of triangulated 3D points descriptors
-        
-        self.scale = 1
-        self.save_new_points = save_new_points
+        Initialize the SLAM system with a given camera intrinsic matrix.
 
-        self.sift = cv2.SIFT_create()
-        self.matcher = cv2.BFMatcher()
+        Args:
+            intrinsic_matrix (np.ndarray): Camera intrinsic matrix (K).
+            save_new_points (bool): Whether to save newly triangulated points to the global map.
+        """
+        self._K = intrinsic_matrix
+        self._K_inv = np.linalg.inv(intrinsic_matrix)
+        
+        # Store previous frame's information
+        self._R_prev = None
+        self._t_prev = None
+        self._des_prev = None
+        self._kp_prev = None
+        
+        # Global 3D map points and their descriptors
+        self._world_points = np.array([])
+        self._world_descriptors = np.array([])
+        
+        # Scale factor for adjusting world position
+        self._scale = 1
+        
+        # Flag to save new points
+        self._save_new_points = save_new_points
+        
+        # Initialize SIFT detector and BFMatcher
+        self._sift = cv2.SIFT_create()
+        self._matcher = cv2.BFMatcher()
+        
+        # Unmatched and matched keypoints
+        self._unmatched_indices = []
     
-    # def __init__(self, K, world_points, world_descriptors, R_prev, t_prev, des_prev, kp_prev, scale = 1, save_new_points = True):
-    #     """
-    #     Initialize the SLAM system with an existing state.
-    #     """
-    #     # Intrinsic matrix.
-    #     self.K = K
-    #     self.K_inv = np.linalg.inv(K)
+    def set_intrinsic_matrix(self, intrinsic_matrix: np.ndarray):
+        """Sets a new intrinsic matrix."""
+        self._K = intrinsic_matrix
+        self._K_inv = np.linalg.inv(intrinsic_matrix)
 
-    #     # Previous frame position and interest points.
-    #     self.R_prev, self.t_prev, self.des_prev, self.kp_prev = R_prev, t_prev, des_prev, kp_prev
+    def get_scale(self) -> float:
+        """Returns the scale factor."""
+        return self._scale
 
-    #     self.world_points = world_points  # Global list of triangulated 3D points
-    #     self.world_descriptors = world_descriptors  # Global list of triangulated 3D points descriptors
+    def set_scale(self, scale: float):
+        """Sets a new scale factor."""
+        self._scale = scale
 
-    #     self.scale = scale
-    #     self.save_new_points = save_new_points
+    def get_world_points(self) -> np.ndarray:
+        """Returns the current global 3D points in the map."""
+        return self._world_points
 
-    #     self.sift = cv2.SIFT_create()
-    #     self.matcher = cv2.BFMatcher()
+    def get_world_descriptors(self) -> np.ndarray:
+        """Returns the current descriptors of the global 3D points."""
+        return self._world_descriptors
 
-    def getRt(self, curr_frame):
+    def get_unmatched(self) -> list:
         """
-        Process the frame to compute the relative R,t with respect to the first frame.
-        Steps:
-            a. Compute the Fundamental and Essential matrices between consecutive frames.
-            b. Refine poses using PnP and saved 3d points.
-            c. Triangulate new 3D points.
-            d. Add new points to the global 3D points.
-            e. Return R, t of the frame.
+        Get the unmatched 2D points from the last frame.
+
+        Returns:
+            list: Indices of unmatched points from the last frame.
         """
-        # Detect keypoints and descriptors in the current frame.
-        gray_curr_frame = cv2.cvtColor(curr_frame, cv2.COLOR_BGR2GRAY)
-        kp_curr, des_curr = self.sift.detectAndCompute(gray_curr_frame, None)
+        return self._unmatched_indices
 
-        if self.R_prev is not None:
-            # Match features between the previous and current frames.
-            matches_curr_prev = self._find_matches(self.des_prev, des_curr)
-            pts_2d_prev, pts_2d_curr = self._matches_to_points(self.kp_prev, kp_curr, matches_curr_prev)
+    def get_matched(self) -> list:
+        """
+        Get the matched 2D points from the last frame.
 
-            # Compute the Essential Matrix.
-            E, mask = cv2.findEssentialMat(pts_2d_prev, pts_2d_curr, self.K, cv2.RANSAC, RANSAC_PROB, RANSAC_THRESHOLD)
+        Returns:
+            list: Indices of matched points from the last frame.
+        """
+        return np.logical_not(self._unmatched_indices)
 
-            # Filter keypoints and matches if they approve the Essential Matrix.
-            good_matches_curr_prev = [match for match, accepted in zip(matches_curr_prev, mask) if accepted]
-            inliers_pts_2d_prev, inliers_pts_2d_curr = self._matches_to_points(self.kp_prev, kp_curr, good_matches_curr_prev)
+    def get_previous_keypoints_descriptors(self):
+        """
+        Get the last frame's keypoints and descriptors.
 
-            # Recover the camera pose (R, t), relative to the previous frame.
-            _, R_relative, t_relative, _ = cv2.recoverPose(E, inliers_pts_2d_prev, inliers_pts_2d_curr, self.K)
+        Returns:
+            tuple: Keypoints and descriptors of the previous frame.
+        """
+        return self._kp_prev, self._des_prev
+    
+    # --- Import and Export Functionality ---
+    def export_state(self, file_path: str):
+        """
+        Saves the current SLAM system's state to a file.
 
-            # Get an approximation of the position matrix of the current frame.
-            R_world_estimated = R_relative @ self.R_prev
-            t_world_estimated = (R_relative @ self.t_prev) + t_relative
-            P_curr_estimated = self.K @ np.hstack((R_world_estimated, t_world_estimated))
-            
-            # Refine the position matrix with the 3d points cloud, using PnP.
-            P_curr_refined, R_world, t_world, global_matches = self._refine_P(P_curr_estimated, R_world_estimated, t_world_estimated, kp_curr, des_curr)
-                        
-            if self.save_new_points:
-                # Find the matches between prev and curr frames, that do not refer to known 3d points.
-                new_global_matches = self._find_new_global_matches(good_matches_curr_prev, global_matches, len(des_curr))
-                new_pts_2d_prev, new_pts_2d_curr = self._matches_to_points(self.kp_prev, kp_curr, new_global_matches)
+        Args:
+            file_path (str): Path to the file where the state will be saved.
+        """
+        with open(file_path, 'wb') as file:
+            state = {
+                'K': self._K,
+                'world_points': self._world_points,
+                'world_descriptors': self._world_descriptors,
+                'R_prev': self._R_prev,
+                't_prev': self._t_prev,
+                'des_prev': self._des_prev,
+                'kp_prev': self._kp_prev,
+                'scale': self._scale
+            }
+            pickle.dump(state, file)
+
+    def import_state(self, file_path: str):
+        """
+        Loads a previously saved SLAM system's state from a file.
+
+        Args:
+            file_path (str): Path to the file from which the state will be loaded.
+        """
+        with open(file_path, 'rb') as file:
+            state = pickle.load(file)
+            self._K = state['K']
+            self._world_points = state['world_points']
+            self._world_descriptors = state['world_descriptors']
+            self._R_prev = state['R_prev']
+            self._t_prev = state['t_prev']
+            self._des_prev = state['des_prev']
+            self._kp_prev = state['kp_prev']
+            self._scale = state['scale']
+
+    def process_frame(self, curr_frame: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Processes the current frame to compute the relative rotation and translation.
+        Performs the following steps:
+            - Detect keypoints and descriptors.
+            - Match features between the previous and current frames.
+            - Estimate essential matrix and recover pose.
+            - Optionally refine the pose using PnP and global map points.
+            - Triangulate new points and add them to the global map.
+
+        Args:
+            curr_frame (np.ndarray): The current image/frame from the camera.
+
+        Returns:
+            tuple: Refined rotation (R) and translation (t) relative to the world frame.
+        """
+        # Convert frame to grayscale and detect keypoints and descriptors
+        gray_frame = cv2.cvtColor(curr_frame, cv2.COLOR_BGR2GRAY)
+        kp_curr, des_curr = self._sift.detectAndCompute(gray_frame, None)
+
+        # Handle first frame initialization
+        if self._R_prev is None:
+            self._R_prev = np.eye(3)
+            self._t_prev = np.zeros((3, 1))
+            self._kp_prev, self._des_prev = kp_curr, des_curr
+            return self._R_prev, self._t_prev
+
+        # Find feature matches between previous and current frames
+        matches = self._find_feature_matches(self._des_prev, des_curr)
+        pts_prev, pts_curr = self._get_matched_points(self._kp_prev, kp_curr, matches)
+
+        # Estimate the essential matrix using RANSAC and recover pose
+        E, mask = cv2.findEssentialMat(pts_prev, pts_curr, self._K, cv2.RANSAC, RANSAC_PROB, RANSAC_THRESHOLD)
+        _, R_rel, t_rel, mask_pose = cv2.recoverPose(E, pts_prev, pts_curr, self._K)
+
+        # Update world pose estimates using relative transformations
+        R_world_est = R_rel @ self._R_prev
+        t_world_est = (R_rel @ self._t_prev) + t_rel
+
+        # Refine projection matrix with known 3D points using PnP
+        P_est, R_world, t_world, global_matches = self._refine_projection_matrix(
+            self._K @ np.hstack((R_world_est, t_world_est)), R_world_est, t_world_est, kp_curr, des_curr)
+
+        # Optionally triangulate new 3D points and add them to the global map
+        if self._save_new_points:
+            self._add_new_triangulated_points(matches, global_matches, kp_curr, des_curr, P_est)
+
+        # Update the previous frame information
+        self._R_prev, self._t_prev = R_world, t_world
+        self._kp_prev, self._des_prev = kp_curr, des_curr
+
+        return R_world, t_world
+
+    def _find_feature_matches(self, des_prev: np.ndarray, des_curr: np.ndarray) -> list:
+        """
+        Finds feature matches between two sets of descriptors using the ratio test.
+
+        Args:
+            des_prev (np.ndarray): Descriptors from the previous frame.
+            des_curr (np.ndarray): Descriptors from the current frame.
+
+        Returns:
+            list: Good matches based on the ratio test.
+        """
+        matches = self._matcher.knnMatch(des_prev, des_curr, k=2)
+        good_matches = [m for m, n in matches if m.distance < 0.75 * n.distance]
+        return sorted(good_matches, key=lambda x: x.distance)
+
+    def _get_matched_points(self, kp_prev: list, kp_curr: list, matches: list) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Converts feature matches into 2D point correspondences for the previous and current frames.
+
+        Args:
+            kp_prev (list): Keypoints from the previous frame.
+            kp_curr (list): Keypoints from the current frame.
+            matches (list): List of feature matches.
+
+        Returns:
+            tuple: Matched 2D points from the previous and current frames.
+        """
+        pts_prev = np.array([kp_prev[m.queryIdx].pt for m in matches], dtype=np.float64).reshape(-1, 1, 2)
+        pts_curr = np.array([kp_curr[m.trainIdx].pt for m in matches], dtype=np.float64).reshape(-1, 1, 2)
+        return pts_prev, pts_curr
+
+    def _refine_projection_matrix(self, P_est: np.ndarray, R_est: np.ndarray, t_est: np.ndarray,
+                                  kp_curr: list, des_curr: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, list]:
+        """
+        Refines the estimated projection matrix using PnP with known 3D points and their corresponding 2D matches.
+
+        Args:
+            P_est (np.ndarray): Initial estimate of the projection matrix.
+            R_est (np.ndarray): Initial estimate of the rotation matrix.
+            t_est (np.ndarray): Initial estimate of the translation vector.
+            kp_curr (list): Keypoints from the current frame.
+            des_curr (np.ndarray): Descriptors from the current frame.
+
+        Returns:
+            tuple: Refined projection matrix, rotation matrix, translation vector, and the global matches.
+        """
+        # Find matches between global 3D points and current frame's 2D features
+        global_matches = self._find_feature_matches(self._world_descriptors, des_curr)
+        
+        # Check if there are enough matches for reliable PnP
+        if len(global_matches) < 5:
+            # If not enough matches, return the original estimates
+            return P_est, R_est, t_est, global_matches
                 
-                # Triangulate new 3d points.
-                P_prev = self.K @ np.hstack((self.R_prev, self.t_prev))
-                new_global_3d_points = self._triangulate(new_pts_2d_prev, new_pts_2d_curr, P_prev, P_curr_refined)
-                new_global_3d_des = np.array([des_curr[match.trainIdx] for match in new_global_matches])
+        # Extract matched 3D points (from global map) and 2D points (from current frame)
+        pts_3d = np.array([self._world_points[m.queryIdx] for m in global_matches])
+        pts_2d = np.array([kp_curr[m.trainIdx].pt for m in global_matches])
 
-                # add the new 3D points to the global points
-                self._add_new_points(new_global_3d_points, new_global_3d_des)
-
-            self.kp_prev, self.des_prev, self.R_prev, self.t_prev = kp_curr, des_curr, R_world, t_world
-            
-            return R_world, t_world / self.scale
+        # Solve the PnP problem to get a refined rotation and translation
+        success, rvec, t_refined = cv2.solvePnP(pts_3d, pts_2d, self._K, None)
+        
+        if success:
+            # Convert the rotation vector (rvec) to a rotation matrix
+            R_refined, _ = cv2.Rodrigues(rvec)
+            # Formulate the refined projection matrix
+            P_refined = self._K @ np.hstack((R_refined, t_refined))
+            return P_refined, R_refined, t_refined, global_matches
         else:
-            # For the first frame, there is no relative pose (identity transformation)
-            self.kp_prev, self.des_prev, self.R_prev, self.t_prev = kp_curr, des_curr, np.eye(3), np.zeros((3, 1))
-            return np.eye(3), np.zeros((3, 1))
+            # If PnP fails, return the original estimates
+            return P_est, R_est, t_est, global_matches
 
-    def _find_matches(self, dsc1 : np.ndarray, dsc2 : np.ndarray) -> np.ndarray:
+    def _add_new_triangulated_points(self, matches: list, global_matches: list, kp_curr: list, des_curr: np.ndarray, P_curr: np.ndarray):
         """
-        Finds matches between the Key points of the two images, based on the distance of their descriptors.
-        Uses the Ratio Test to reduce False Positive results.
+        Triangulates new 3D points from the current frame and adds them to the global map.
+        Ensures that the new points are not already part of the map.
 
         Args:
-            dsc1 (np.ndarray): Descriptors of the first image's key points.
-            dsc2 (np.ndarray): Descriptors of the second image's key points.
-
-        Returns:
-            np.ndarray: The matches found.
+            matches (list): Matches between previous and current frames.
+            global_matches (list): Matches between the global map and the current frame.
+            kp_curr (list): Keypoints from the current frame.
+            des_curr (np.ndarray): Descriptors from the current frame.
+            P_curr (np.ndarray): Current projection matrix.
         """
-        matches = self.matcher.knnMatch(dsc1, dsc2, k = 2)
+        # Determine unmatched and matched keypoints for the current frame
+        self._unmatched_indices = np.zeros(len(kp_curr), dtype=bool)
+        for match in matches:
+            self._unmatched_indices[match.trainIdx] = True
+        for global_match in global_matches:
+            self._unmatched_indices[global_match.trainIdx] = False
+        unmatched = [m for m in matches if self._unmatched_indices[m.trainIdx]]
+                
+        if len(self._unmatched_indices) < 5:
+            return
+
+        # Extract 2D points for triangulation
+        pts_prev = np.array([self._kp_prev[m.queryIdx].pt for m in unmatched])
+        pts_curr = np.array([kp_curr[m.trainIdx].pt for m in unmatched])
+
+        # Triangulate new 3D points using the projection matrices of the previous and current frames
+        P_prev = self._K @ np.hstack((self._R_prev, self._t_prev))
+        pts_4d_homogeneous = cv2.triangulatePoints(P_prev, P_curr, pts_prev.T, pts_curr.T)
+
+        # print(len(self._world_points))
         
-        good_matches = []
-        for m, n in matches:
-            if m.distance < 0.75 * n.distance:
-                good_matches.append(m)
+        # Convert the homogeneous 4D points to 3D (by dividing by the last element)
+        pts_3d = pts_4d_homogeneous[:3] / pts_4d_homogeneous[3]
 
-        good_matches = sorted(good_matches, key = lambda x: -x.distance)
-        return good_matches
-    
-    def _matches_to_points(self, kp1 : np.ndarray, kp2 : np.ndarray, matches : np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """
-        Converts a list of matches to two lists of the corresponding Key points.
+        # Append the new points and their descriptors to the global map
+        if len(self._world_points) == 0:
+            self._world_points = pts_3d.T
+        else:
+            self._world_points = np.vstack((self._world_points, pts_3d.T))
 
-        Args:
-            kp1 (np.ndarray): The Key points of the first image.
-            kp2 (np.ndarray): The Key points of the second image.
-            matches (np.ndarray): The matches between the Key points. 
+        if len(self._world_descriptors) == 0:
+            self._world_descriptors = des_curr[self._unmatched_indices]
+        else:
+            self._world_descriptors = np.vstack((self._world_descriptors, des_curr[self._unmatched_indices]))
 
-        Returns:
-            tuple[np.ndarray, np.ndarray]: Two lists of the match points, one for each image.
-        """
-        points1 = np.array([kp1[match.queryIdx].pt for match in matches], dtype=np.float64).reshape(-1, 1, 2)
-        points2 = np.array([kp2[match.trainIdx].pt for match in matches], dtype=np.float64).reshape(-1, 1, 2)
-        return points1, points2
-
-    def _triangulate(self, pts1, pts2, P1, P2):
-        """
-        Triangulates 3D points from matched keypoints using the essential matrix.
-        
-        Parameters:
-        
-        Returns:
-        points3D (numpy.ndarray): Triangulated 3D points.
-        """                
-        pts1_undistorted = cv2.undistortPoints(pts1, self.K, None)
-        pts2_undistorted = cv2.undistortPoints(pts2, self.K, None)
-        
-        # pts1_undistorted = cv2.undistortPoints(np.expand_dims(pts1, axis = 1), self.K, None)
-        # pts2_undistorted = cv2.undistortPoints(np.expand_dims(pts2, axis = 1), self.K, None)
-        
-        points4D = cv2.triangulatePoints(P1, P2, pts1_undistorted, pts2_undistorted)
-        points3D = points4D[:3] / points4D[3]
-        
-        return points3D.T
-
-    def _find_new_global_matches(self, matches_curr_prev, global_matches, num_pts_2d_curr):
-        """
-        .
-        """
-        new_2d_pts_curr = np.full(num_pts_2d_curr, True)
-        for g_match in global_matches:
-            new_2d_pts_curr[g_match.trainIdx] = True
-        return [match for match in matches_curr_prev if new_2d_pts_curr[match.trainIdx]]
-
-    def _refine_P(self, P_estimate, R_estimate, t_estimate, kp_new, des_new):
-        """
-        Refines the camera projection matrix P_estimate based on known 3D points and matches keypoints.
-        
-        Parameters:
-        - P_estimate: Initial estimate of the camera projection matrix (3x4 numpy array)
-        - kp_new: List of keypoints detected in the new frame
-        - des_new: Descriptors of the keypoints from the new frame
-        
-        Returns:
-        - refined_P: Refined camera projection matrix (3x4 numpy array)
-        - matches: List of good matches used in the refinement
-        """
-        # Match descriptors between new frame and world points
-        good_matches = self._find_matches(self.world_descriptors, des_new)
-
-        if len(good_matches) < 4:
-            print("Not enough matches to refine P")
-            return P_estimate, R_estimate, t_estimate, good_matches
-
-        # Extract matched 2D image points and 3D world points
-        matched_world_points = np.array([self.world_points[m.queryIdx] for m in good_matches])
-        matched_image_points = np.array([kp_new[m.trainIdx].pt for m in good_matches])
-
-        # Ensure the points are in the correct shape and type
-        matched_image_points = matched_image_points.astype(np.float32).reshape(-1, 2)
-        matched_world_points = matched_world_points.astype(np.float32).reshape(-1, 3)
-
-        # Convert rotation matrix to rotation vector
-        R_vec_estimate, _ = cv2.Rodrigues(R_estimate)
-
-        # Step 4: Use solvePnP with initial estimates to refine R and t
-        success, rvec_refined, tvec_refined = cv2.solvePnP(
-            matched_world_points, matched_image_points, self.K, distCoeffs=np.zeros((4, 1)), 
-            rvec=R_vec_estimate, tvec=t_estimate, useExtrinsicGuess=True, flags=cv2.SOLVEPNP_ITERATIVE
-        )
-
-        if not success:
-            print("solvePnP failed to refine P")
-            return P_estimate, R_estimate, t_estimate, good_matches
-
-        # Convert rotation vector back to rotation matrix
-        R_refined, _ = cv2.Rodrigues(rvec_refined)
-        t_refined = tvec_refined.reshape(3, 1)
-        
-        # Step 5: Build the refined projection matrix
-        P_refined = self.K @ np.hstack((R_refined, t_refined))
-
-        return P_refined, R_refined, t_refined, good_matches
-
-    def _add_new_points(self, new_global_3d_points, new_global_3d_des):
-        """
-        Add newly triangulated 3D points to the global 3D point set.
-        """
-        self.world_points = np.vstack((self.world_points, new_global_3d_points)) if self.world_points.size else new_global_3d_points
-        self.world_descriptors = np.vstack((self.world_descriptors, new_global_3d_des)) if self.world_descriptors.size else new_global_3d_des
-
-    def _Rt_from_P(self, P):
-        Rt = self.K_inv @ P
-        return Rt[:, :3], Rt[:, 3]
-    
-# Example usage:
-
-K=np.eye(3)
-slam = SLAM(K)
-cam = cv2.VideoCapture(0)
-
-while cv2.waitKey(20) != ord('q'):
-    ret, frame = cam.read()
-
-    if ret:
-        R, t = slam.getRt(frame)
-        print(t)
-        cv2.imshow("cam0", frame)

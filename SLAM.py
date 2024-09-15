@@ -250,9 +250,11 @@ class SLAM:
         # Extract matched 3D points (from global map) and 2D points (from current frame)
         pts_3d = np.array([self._world_points[m.queryIdx] for m in global_matches])
         pts_2d = np.array([kp_curr[m.trainIdx].pt for m in global_matches])
-
-        # Solve the PnP problem to get a refined rotation and translation
-        success, rvec, t_refined = cv2.solvePnP(pts_3d, pts_2d, self._K, None)
+        try:
+            # Solve the PnP problem to get a refined rotation and translation
+            success, rvec, t_refined = cv2.solvePnP(pts_3d, pts_2d, self._K, None)
+        except:
+            return P_est, R_est, t_est, global_matches
         
         if success:
             # Convert the rotation vector (rvec) to a rotation matrix

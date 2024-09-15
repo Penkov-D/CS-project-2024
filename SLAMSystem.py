@@ -27,8 +27,8 @@ class SLAMSystem:
         while cv2.waitKey(10) != ord('q'):
             ret, frame = cap.read()
             if not ret:
-                continue
-
+                break
+            
             # Process frame with SLAM
             R, t = slam.process_frame(frame)
             print(t.round(2))
@@ -67,6 +67,10 @@ class SLAMSystem:
         plt.ion()  # Interactive mode for real-time plotting
         
         while True:
+            ret, frame = cap.read()
+            ret, frame = cap.read()
+            ret, frame = cap.read()
+            ret, frame = cap.read()
             ret, frame = cap.read()
             if not ret:
                 break
@@ -167,6 +171,6 @@ class SLAMSystem:
         
         
 sys = SLAMSystem()
-sys.create_3d_map(0, "myMap1")
+sys.create_3d_map("video1.mp4", "myMap1")
 # sys.navigate(0, "myMap1")
 # sys.plot_map("myMap1")

@@ -173,6 +173,7 @@ class SLAM:
 
         # Estimate the essential matrix using RANSAC and recover pose
         E, mask = cv2.findEssentialMat(pts_prev, pts_curr, self._K, cv2.RANSAC, RANSAC_PROB, RANSAC_THRESHOLD)
+        matches = [match for match, accepted in zip(matches, mask) if accepted]
         _, R_rel, t_rel, mask_pose = cv2.recoverPose(E, pts_prev, pts_curr, self._K)
 
         # Update world pose estimates using relative transformations
@@ -185,7 +186,7 @@ class SLAM:
 
         # Optionally triangulate new 3D points and add them to the global map
         if self._save_new_points:
-            self._add_new_triangulated_points(matches, global_matches, kp_curr, des_curr, P_est)
+            self._update_3d_pts(matches, global_matches, kp_curr, des_curr, P_est)
 
         # Update the previous frame information
         self._R_prev, self._t_prev = R_world, t_world
@@ -252,13 +253,14 @@ class SLAM:
         pts_2d = np.array([kp_curr[m.trainIdx].pt for m in global_matches])
         try:
             # Solve the PnP problem to get a refined rotation and translation
-            success, rvec, t_refined = cv2.solvePnP(
+            success, rvec, t_refined = cv2.solvePnPRansac(
                 pts_3d, 
                 pts_2d, 
-                self.K, 
-                distCoeffs=np.zeros((4, 1)), 
+                self._K, 
                 rvec=R_est, 
                 tvec=t_est, 
+                # reprojectionError=RANSAC_THRESHOLD,
+                # confidence=RANSAC_PROB,
                 useExtrinsicGuess=True, 
                 flags=cv2.SOLVEPNP_ITERATIVE)
         except:
@@ -274,37 +276,19 @@ class SLAM:
             # If PnP fails, return the original estimates
             return P_est, R_est, t_est, global_matches
 
-    def _add_new_triangulated_points(self, matches: list, global_matches: list, kp_curr: list, des_curr: np.ndarray, P_curr: np.ndarray):
-        """
-        Triangulates new 3D points from the current frame and adds them to the global map.
-        Ensures that the new points are not already part of the map.
-
-        Args:
-            matches (list): Matches between previous and current frames.
-            global_matches (list): Matches between the global map and the current frame.
-            kp_curr (list): Keypoints from the current frame.
-            des_curr (np.ndarray): Descriptors from the current frame.
-            P_curr (np.ndarray): Current projection matrix.
-        """
-        # Determine unmatched and matched keypoints for the current frame
-        self._unmatched_indices = np.zeros(len(kp_curr), dtype=bool)
-        for match in matches:
-            self._unmatched_indices[match.trainIdx] = True
-        for global_match in global_matches:
-            self._unmatched_indices[global_match.trainIdx] = False
-        
-        # matches between the last and current frame, that 
-        unmatched = [m for m in matches if self._unmatched_indices[m.trainIdx]]
-        
-        if len(unmatched) < 5:
+    def _recalc_known_3d_pts(self, existing_matches: list, kp_curr: list, des_curr: np.ndarray, P_curr: np.ndarray, P_prev: np.ndarray):
+        pass
+    
+    def _add_new_3d_pts(self, new_matches: list, kp_curr: list, des_curr: np.ndarray, P_curr: np.ndarray, P_prev: np.ndarray):
+        if len(new_matches) < 5:
             return
 
         # Extract 2D points for triangulation
-        pts_prev = np.array([self._kp_prev[m.queryIdx].pt for m in unmatched])
-        pts_curr = np.array([kp_curr[m.trainIdx].pt for m in unmatched])
+        pts_prev = np.array([self._kp_prev[m.queryIdx].pt for m in new_matches])
+        pts_curr = np.array([kp_curr[m.trainIdx].pt for m in new_matches])
 
         # Triangulate new 3D points using the projection matrices of the previous and current frames
-        P_prev = self._K @ np.hstack((self._R_prev, self._t_prev))
+        
         try:
             pts_4d_homogeneous = cv2.triangulatePoints(P_prev, P_curr, pts_prev.T, pts_curr.T)
         except:
@@ -326,4 +310,32 @@ class SLAM:
             self._world_descriptors = des_curr[self._unmatched_indices]
         else:
             self._world_descriptors = np.vstack((self._world_descriptors, des_curr[self._unmatched_indices]))
+    
+    def _update_3d_pts(self, matches: list, global_matches: list, kp_curr: list, des_curr: np.ndarray, P_curr: np.ndarray):
+        """
+        Triangulates new 3D points from the current frame and adds them to the global map.
+        Ensures that the new points are not already part of the map.
 
+        Args:
+            matches (list): Matches between previous and current frames.
+            global_matches (list): Matches between the global map and the current frame.
+            kp_curr (list): Keypoints from the current frame.
+            des_curr (np.ndarray): Descriptors from the current frame.
+            P_curr (np.ndarray): Current projection matrix.
+        """
+        # Determine unmatched and matched keypoints for the current frame
+        self._unmatched_indices = np.zeros(len(kp_curr), dtype=bool)
+        for match in matches:
+            self._unmatched_indices[match.trainIdx] = True
+        for global_match in global_matches:
+            self._unmatched_indices[global_match.trainIdx] = False
+        
+        # matches between the last and current frame, that do not refer to known 3d points.
+        unmatched = [m for m in matches if self._unmatched_indices[m.trainIdx]]
+        
+        # matches between the last and current frame, that refer to known 3d points.
+        matched = [m for m in matches if not self._unmatched_indices[m.trainIdx]]
+        
+        P_prev = self._K @ np.hstack((self._R_prev, self._t_prev))
+
+        self._add_new_3d_pts(unmatched, kp_curr, des_curr, P_curr, P_prev)

@@ -169,12 +169,13 @@ class SLAMSystem:
         #             head_width=0.1, color='green', label='Heading')
         
         # Set plot title and labels
-        self.ax.set_title("2D Map - Current Position and Heading")
+        self.ax.set_title("2D Map - Current Position")
         self.ax.set_xlabel("X")
         self.ax.set_ylabel("Z")
         
         
 sys = SLAMSystem()
+# sys.create_3d_map(0, "myMap1")
 sys.create_3d_map("video1.mp4", "myMap1")
 # sys.navigate(0, "myMap1")
 # sys.plot_map("myMap1")

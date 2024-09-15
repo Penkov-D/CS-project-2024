@@ -25,6 +25,10 @@ class SLAMSystem:
         slam = SLAM(intrinsic_matrix=np.eye(3))  # Replace with actual intrinsic matrix
         
         while cv2.waitKey(10) != ord('q'):
+            _, _ = cap.read()
+            _, _ = cap.read()
+            _, _ = cap.read()
+            _, _ = cap.read()
             ret, frame = cap.read()
             if not ret:
                 break

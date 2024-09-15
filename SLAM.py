@@ -252,7 +252,15 @@ class SLAM:
         pts_2d = np.array([kp_curr[m.trainIdx].pt for m in global_matches])
         try:
             # Solve the PnP problem to get a refined rotation and translation
-            success, rvec, t_refined = cv2.solvePnP(pts_3d, pts_2d, self._K, None)
+            success, rvec, t_refined = cv2.solvePnP(
+                pts_3d, 
+                pts_2d, 
+                self.K, 
+                distCoeffs=np.zeros((4, 1)), 
+                rvec=R_est, 
+                tvec=t_est, 
+                useExtrinsicGuess=True, 
+                flags=cv2.SOLVEPNP_ITERATIVE)
         except:
             return P_est, R_est, t_est, global_matches
         
@@ -284,6 +292,8 @@ class SLAM:
             self._unmatched_indices[match.trainIdx] = True
         for global_match in global_matches:
             self._unmatched_indices[global_match.trainIdx] = False
+        
+        # matches between the last and current frame, that 
         unmatched = [m for m in matches if self._unmatched_indices[m.trainIdx]]
         
         if len(unmatched) < 5:

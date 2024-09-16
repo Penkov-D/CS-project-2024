@@ -169,11 +169,15 @@ class SLAM:
 
         # Find feature matches between previous and current frames
         matches = self._find_feature_matches(self._des_prev, des_curr)
+        if len(matches) < 5:
+            return None, None
+        
         pts_prev, pts_curr = self._get_matched_points(self._kp_prev, kp_curr, matches)
 
         # Estimate the essential matrix using RANSAC and recover pose
         E, mask = cv2.findEssentialMat(pts_prev, pts_curr, self._K, cv2.RANSAC, RANSAC_PROB, RANSAC_THRESHOLD)
-        matches = [match for match, accepted in zip(matches, mask) if accepted]
+        if mask is None:
+            matches = [match for match, accepted in zip(matches, mask) if accepted]
         _, R_rel, t_rel, mask_pose = cv2.recoverPose(E, pts_prev, pts_curr, self._K)
 
         # Update world pose estimates using relative transformations
@@ -192,7 +196,7 @@ class SLAM:
         self._R_prev, self._t_prev = R_world, t_world
         self._kp_prev, self._des_prev = kp_curr, des_curr
 
-        return R_world, t_world
+        return R_world, t_world / self._scale
 
     def _find_feature_matches(self, des_prev: np.ndarray, des_curr: np.ndarray) -> list:
         """
@@ -206,6 +210,8 @@ class SLAM:
             list: Good matches based on the ratio test.
         """
         matches = self._matcher.knnMatch(des_prev, des_curr, k=2)
+        if len(matches) < 5:
+            return matches
         good_matches = [m for m, n in matches if m.distance < 0.75 * n.distance]
         return sorted(good_matches, key=lambda x: x.distance)
 

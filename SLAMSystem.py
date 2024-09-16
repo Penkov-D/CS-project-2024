@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from SLAM import SLAM
+from OpenDJI import OpenDJI
+from VCS import VideoCapture
 
 class SLAMSystem:
     def __init__(self):
@@ -10,7 +12,7 @@ class SLAMSystem:
         """
         self.fig, self.ax = plt.subplots()
         
-    def create_3d_map(self, video_source: str, output_file: str):
+    def create_3d_map(self, cam, output_file: str):
         """
         Run the SLAM to create a 3D map while plotting the current location and heading.
 
@@ -18,23 +20,25 @@ class SLAMSystem:
             video_source (str): Path to the video file or camera input (e.g., 0 for default camera).
             output_file (str): File path to save the map data when user quits (by pressing 'q').
         """
-        cap = cv2.VideoCapture(video_source)
         plt.ion()  # Interactive mode for real-time plotting
         
         # Initialize SLAM object
         slam = SLAM(intrinsic_matrix=np.eye(3))  # Replace with actual intrinsic matrix
         
         while cv2.waitKey(10) != ord('q'):
-            _, _ = cap.read()
-            _, _ = cap.read()
-            _, _ = cap.read()
-            _, _ = cap.read()
-            ret, frame = cap.read()
+            _, _ = cam.read()
+            _, _ = cam.read()
+            _, _ = cam.read()
+            _, _ = cam.read()
+            ret, frame = cam.read()
             if not ret:
-                break
+                continue
             
             # Process frame with SLAM
             R, t = slam.process_frame(frame)
+            if R is None:
+                continue
+            
             print(t.round(2))
             # Plot current position and heading on 2D map
             self._plot_position_heading(R, t)
@@ -46,16 +50,14 @@ class SLAMSystem:
             # Update 2D plot
             plt.draw()
             plt.pause(0.01)
-            
         
-        cap.release()
         cv2.destroyAllWindows()
         
         # Save map data to file
         slam.export_state(output_file)
         print(f"Map data saved to {output_file}")
 
-    def navigate(self, video_source: str, map_file: str, save_new_points : bool = False):
+    def navigate(self, cam, map_file: str, save_new_points : bool = False):
         """
         Run the SLAM with navigation using an existing 3D map.
 
@@ -67,15 +69,14 @@ class SLAMSystem:
         slam = SLAM(intrinsic_matrix=np.eye(3), save_new_points=save_new_points)
         slam.import_state(map_file)
         
-        cap = cv2.VideoCapture(video_source)
         plt.ion()  # Interactive mode for real-time plotting
         
         while True:
-            ret, frame = cap.read()
-            ret, frame = cap.read()
-            ret, frame = cap.read()
-            ret, frame = cap.read()
-            ret, frame = cap.read()
+            ret, frame = cam.read()
+            ret, frame = cam.read()
+            ret, frame = cam.read()
+            ret, frame = cam.read()
+            ret, frame = cam.read()
             if not ret:
                 break
 
@@ -93,7 +94,6 @@ class SLAMSystem:
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
         
-        cap.release()
         cv2.destroyAllWindows()
 
     def plot_map(self, map_file: str):
@@ -158,7 +158,7 @@ class SLAMSystem:
         self.ax.grid(True)
         
         # Plot the current position
-        t.round(1)
+        # t.round(1)
         self.ax.scatter(t[0], t[2], color='blue', label='Current Position')
         
         # # FIX:
@@ -173,9 +173,31 @@ class SLAMSystem:
         self.ax.set_xlabel("X")
         self.ax.set_ylabel("Z")
         
+class DroneCam:
+    def __init__(self, address) -> None:
+        self.drone = OpenDJI(address)
+    def read(self):
+        frame = self.drone.getFrame()
+        if frame is None:
+            return False, None
+        frame = cv2.resize(frame, dsize = None,
+                    fx = 0.25,
+                    fy = 0.25)
+        return True, frame
+    
+    def release(self):
+        pass
         
 sys = SLAMSystem()
-# sys.create_3d_map(0, "myMap1")
-sys.create_3d_map("video1.mp4", "myMap1")
-# sys.navigate(0, "myMap1")
+
+cam = DroneCam("10.0.0.4")
+# cam = cv2.VideoCapture(0)
+# cam = cv2.VideoCapture("video1.mp4")
+
+vcs = VideoCapture(cam)
+
+sys.create_3d_map(vcs, "myMap1")
+# sys.navigate(vcs, "myMap1")
 # sys.plot_map("myMap1")
+
+cam.release()

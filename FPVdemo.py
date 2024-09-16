@@ -22,7 +22,7 @@ on your computer screen!
 """
 
 # IP address of the connected android device
-IP_ADDR = "10.0.0.6"
+IP_ADDR = "10.0.0.4"
 
 # The image from the drone can be quit big,
 #  use this to scale down the image:

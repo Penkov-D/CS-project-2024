@@ -1,4 +1,4 @@
-# CS-project-2024
+# DJI-MSDK-to-PC / OpenDJI
 This project seek to give convenient way to control the `DJI mini 3 pro` drone (and similars)
 without the need to make android app each time!
 
@@ -247,7 +247,3 @@ They can be identified by the `parameter` in the information of a key.
 > Be careful when using undocumented keys! some are not working at all
 > (not imlemented yet and some just not supported on the device),
 > and with no information about them, thier behavior is truly undefined.
-
-
-## Reported hours on the project
-https://docs.google.com/spreadsheets/d/13MvI2DrXtzP0ggId6Q-3oknLaDBWd-IZYB2vUNI7Uto/edit?usp=sharing
